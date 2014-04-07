@@ -68,7 +68,7 @@
            nu        , & ! unit number
            nbits         ! no. of bits per variable (0 for sequential access)
 
-      character (*) :: filename
+      character (len=*), intent(in) :: filename
 !
 !EOP
 !
@@ -475,7 +475,7 @@
 ! !INPUT/OUTPUT PARAMETERS:
 !
 
-      character (char_len_long), intent(in) :: & 
+      character (len=*), intent(in) :: & 
            filename      ! netCDF filename
 
       integer (kind=int_kind), intent(out) :: &
@@ -493,7 +493,7 @@
           status = nf90_open(filename, NF90_NOWRITE, fid)
           if (status /= nf90_noerr) then
              call abort_ice ( & 
-                   'ice_open_nc: Cannot open '//trim(filename) )
+                   'ice_open_nc: Cannot open '//trim(filename)//'BLAH')
           endif
 
       endif                      ! my_task = master_task
@@ -541,7 +541,7 @@
       logical (kind=log_kind), intent(in) :: &
            diag              ! if true, write diagnostic output
 
-      character (char_len), intent(in) :: & 
+      character (len=*), intent(in) :: & 
            varname           ! field name in netcdf file
 
       real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks), &
@@ -690,7 +690,7 @@
            fid           , & ! file id
            nrec              ! record number 
 
-     character (char_len), intent(in) :: & 
+      character (len=*), intent(in) :: &
            varname           ! field name in netcdf file        
 
       real (kind=dbl_kind), dimension(nx_global,ny_global), &
@@ -789,6 +789,110 @@
 #endif
       end subroutine ice_read_global_nc
 
+#ifdef AusCOM
+!=======================================================================
+!BOP
+!
+! !IROUTINE: ice_read_global_nc_3D - read one 3D field from a netcdf file
+!
+! --- this is only used for reading in vertices of grid cells ---
+!  	                  NOT really needed !
+! 
+! !INTERFACE:
+!
+      subroutine ice_read_global_nc_3D (fid,  nrec, varname, work_g, diag)
+!
+! !DESCRIPTION: same as ice_read_global_nc but for 3D global field reading
+! 
+! 
+      use ice_exit
+!
+! !INPUT/OUTPUT PARAMETERS:
+!
+      integer (kind=int_kind), intent(in) :: &
+           fid           , & ! file id
+           nrec              ! record number 
+
+      character (len=*), intent(in) :: & 
+           varname           ! field name in netcdf file        
+
+      real (kind=dbl_kind), dimension(nx_global,ny_global,4), &
+           intent(out) :: &
+           work_g            ! output array (real, 8-byte)
+
+      logical (kind=log_kind) :: &
+           diag              ! if true, write diagnostic output
+
+!xxx      integer (kind=int_kind), dimension(3) :: start3D, count3D
+!
+!EOP
+!
+! netCDF file diagnostics:
+      integer (kind=int_kind) :: & 
+         varid,           & ! netcdf id for field
+         status,          & ! status output from netcdf routines
+         ndim, nvar,      & ! sizes of netcdf file
+         id,              & ! dimension index
+         dimlen             ! size of dimension      
+
+      real (kind=dbl_kind) :: &
+         amin, amax         ! min and max values of input array
+
+     character (char_len) :: &
+         dimname            ! dimension name            
+
+!
+      work_g(:,:,:) = c0
+
+      if (my_task == master_task) then
+
+        !-------------------------------------------------------------
+        ! Find out ID of required variable
+        !-------------------------------------------------------------
+
+         status = nf90_inq_varid(fid, trim(varname), varid)
+
+         if (status /= nf90_noerr) then
+           call abort_ice ( &
+            'ice_read_global_nc: Cannot find variable '//trim(varname) )
+         endif
+
+       !--------------------------------------------------------------
+       ! Read global array
+       !--------------------------------------------------------------
+
+         status = nf90_get_var( fid, varid, work_g, &
+               start=(/1,1,1,nrec/), &
+               count=(/nx_global,ny_global,4,1/) )
+
+      endif                     ! my_task = master_task
+
+    !-------------------------------------------------------------------
+    ! optional diagnostics
+    !-------------------------------------------------------------------
+
+      if (my_task == master_task .and. diag) then
+
+          write(nu_diag,*) &
+            'ice_read_global_nc, fid= ',fid, ', nrec = ',nrec, &
+            ', varname = ',trim(varname)
+          status = nf90_inquire(fid, nDimensions=ndim, nVariables=nvar)
+          write(nu_diag,*) 'ndim= ',ndim,', nvar= ',nvar
+          do id=1,ndim
+            status = nf90_inquire_dimension(fid,id,name=dimname,len=dimlen)
+            write(nu_diag,*) 'Dim name = ',trim(dimname),', size = ',dimlen
+         enddo
+         amin = minval(work_g)
+         amax = maxval(work_g)
+         write(nu_diag,*) 'min and max = ', amin, amax
+         write(nu_diag,*) ''
+
+      endif
+
+      end subroutine ice_read_global_nc_3D
+
+#endif
+
 !=======================================================================
 !BOP
 !
@@ -828,7 +932,7 @@
       logical (kind=log_kind), intent(in) :: &
            diag              ! if true, write diagnostic output
 
-      character (char_len), intent(in) :: & 
+      character (len=*), intent(in) :: & 
            varname           ! field name in netcdf file
 
       real (kind=dbl_kind), &

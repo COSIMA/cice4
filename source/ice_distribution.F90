@@ -59,6 +59,9 @@
                              ! 'square-ice' like square-pop but better for ice
                              ! 'slenderX1' (NPX x 1)
                              ! 'slenderX2' (NPX x 2)
+   integer (int_kind), public ::    &
+      nprocsX,             &! num of procs in x for global domain
+      nprocsY              ! num of procs in y for global domain
 
 !EOP
 !BOC
@@ -674,8 +677,8 @@
       processor,             &! processor position in cartesian decomp
       globalID,              &! global block ID
       localID,               &! block location on this processor
-      nprocsX,             &! num of procs in x for global domain
-      nprocsY,             &! num of procs in y for global domain
+!      nprocsX,             &! num of procs in x for global domain
+!      nprocsY,             &! num of procs in y for global domain
       numBlocksXPerProc,     &! num of blocks per processor in x
       numBlocksYPerProc       ! num of blocks per processor in y
 
@@ -841,9 +844,9 @@
       istat              ,&! status flag for allocates
       localBlock         ,&! local block position on processor
       numOcnBlocks       ,&! number of ocean blocks
-      maxWork            ,&! max amount of work in any block
-      nprocsX          ,&! num of procs in x for global domain
-      nprocsY            ! num of procs in y for global domain
+      maxWork            ! max amount of work in any block
+!      nprocsX          ,&! num of procs in x for global domain
+!      nprocsY            ! num of procs in y for global domain
 
    integer (int_kind), dimension(:), allocatable :: &
       priority           ,&! priority for moving blocks

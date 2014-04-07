@@ -9,7 +9,7 @@
 ! Reads and interpolates forcing data for atmosphere and ocean quantities.
 !
 ! !REVISION HISTORY:
-!  SVN:$Id: ice_forcing.F90 292 2010-07-20 23:08:24Z eclare $
+!  SVN:$Id: ice_forcing.F90 276 2010-05-05 21:49:36Z eclare $
 !
 ! authors: Elizabeth C. Hunke and William H. Lipscomb, LANL
 !
@@ -40,6 +40,10 @@
       use ice_atmo, only: calc_strair
       use ice_exit
       use ice_timers
+#ifdef AusCOM
+      use cpl_parameters !, only : use_lwflxd
+#endif
+
 !
 !EOP
 !
@@ -197,6 +201,7 @@
     ! Get filenames for input forcing data     
     !-------------------------------------------------------------------
 
+#ifndef AusCOM
       ! default forcing values from init_flux_atm
       if (trim(atm_data_type) == 'ncar') then
          call NCAR_files(fyear)
@@ -209,6 +214,7 @@
       elseif (trim(atm_data_type) == 'monthly') then
          call monthly_files(fyear)
       endif
+#endif
 
       end subroutine init_forcing_atmo
 
@@ -268,6 +274,8 @@
     ! initialize to annual climatology created from monthly data
     !-------------------------------------------------------------------
 
+#ifndef AusCOM
+
       if (trim(sss_data_type) == 'clim') then
 
 !         sss_file = trim(ocn_data_dir)//'sss_Lev.mm'
@@ -303,7 +311,7 @@
                sss(i,j,iblk) = sss(i,j,iblk) / c12   ! annual average
                sss(i,j,iblk) = max(sss(i,j,iblk),c0)
                if (trim(Tfrzpt) == 'constant') then
-                  Tf (i,j,iblk) = -1.8_dbl_kind ! deg C
+                  Tf (i,j,iblk) = Tocnfrz ! deg C
                else ! default:  Tfrzpt = 'linear_S'
                   Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
                endif
@@ -315,11 +323,29 @@
          if (my_task == master_task) close(nu_forcing)
 
       endif                     ! sss_data_type
+#else
+      sss(:,:,:) = 34.0
+      !set a constant SSS fields in coupled case (Siobhan's idea ?!)
+      !need revist this part ?!
+      do iblk = 1, nblocks
+         do j = 1, ny_block
+         do i = 1, nx_block
+            if (trim(Tfrzpt) == 'constant') then
+               Tf (i,j,iblk) = Tocnfrz ! deg C
+            else ! default:  Tfrzpt = 'linear_S'
+               Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
+            endif
+         enddo
+         enddo
+      enddo
+#endif
 
     !-------------------------------------------------------------------
     ! Sea surface temperature (SST)
     ! initialize to data for current month
     !-------------------------------------------------------------------
+
+#ifndef AusCOM
 
       if (restore_sst) then
          if (trestore == 0) then
@@ -401,6 +427,21 @@
           trim(sss_data_type) == 'ncar') then
          call ocn_data_ncar_init
       endif
+
+#else
+!      sst(:,:,:)=-1.8
+      sst(:,:,:)=-0.1
+      !set initial SST constant globally (Siobhan's idea ?!)
+      !need revist this part ?!
+      !Make sure sst is not less than freezing temperature Tf
+      do iblk = 1, nblocks
+          do j = 1, ny_block
+          do i = 1, nx_block
+             sst(i,j,iblk) = max(sst(i,j,iblk),Tf(i,j,iblk))
+          enddo
+          enddo
+      enddo
+#endif
 
       end subroutine init_forcing_ocn
 
@@ -521,6 +562,257 @@
       call ice_timer_stop(timer_bound)
 
       end subroutine get_forcing_atmo
+
+#ifdef AusCOM
+!=======================================================================
+!BOP
+!
+! !IROUTINE: get_forcing_atmo_ready 
+!
+! !INTERFACE:
+!
+      subroutine get_forcing_atmo_ready
+!
+! !DESCRIPTION:
+!
+! Get atmospheric forcing data required by cice
+!
+! !REVISION HISTORY:
+!
+! authors: adapted by Siobhan for AusCOM.
+!
+! !USES:
+!
+      use ice_domain
+      use ice_blocks
+      use ice_flux
+      use ice_state
+      use ice_grid, only: ANGLET, hm
+
+      integer (kind=int_kind) :: &
+         iblk, &              ! block index
+         ilo,ihi,jlo,jhi      ! beginning and end of physical domain
+
+      type (block) :: &
+         this_block           ! block information for current block
+
+!
+!EOP
+!
+
+    !-------------------------------------------------------------------
+    ! prepare atmospheric data
+    !-------------------------------------------------------------------
+
+      do iblk = 1, nblocks
+
+         this_block = get_block(blocks_ice(iblk),iblk)
+         ilo = this_block%ilo
+         ihi = this_block%ihi
+         jlo = this_block%jlo
+         jhi = this_block%jhi
+
+    !-------------------------------------------------------------------
+    ! Convert forcing data to fields needed by ice model
+    !-------------------------------------------------------------------
+
+         call prepare_forcing_from_oasis (nx_block, ny_block, &
+                               ilo, ihi, jlo, jhi, &
+                               hm    (:,:,iblk),   &
+                               Tair  (:,:,iblk),   &
+                               fsw   (:,:,iblk),   &
+                               flw   (:,:,iblk),   &
+                               frain (:,:,iblk),   &
+                               fsnow (:,:,iblk),   &
+                               Qa    (:,:,iblk),   &
+                               rhoa  (:,:,iblk),   &
+                               uatm  (:,:,iblk),   &
+                               vatm  (:,:,iblk),   &
+                               strax (:,:,iblk),   &
+                               stray (:,:,iblk),   &
+                               zlvl  (:,:,iblk),   &
+                               wind  (:,:,iblk),   &
+                               swvdr (:,:,iblk),   &
+                               swvdf (:,:,iblk),   &
+                               swidr (:,:,iblk),   &
+                               swidf (:,:,iblk),   &
+                               potT  (:,:,iblk),   &
+                               ANGLET(:,:,iblk),   &
+                               trcr  (:,:,nt_Tsfc,iblk), &
+                               sst   (:,:,iblk),   &
+                               aice  (:,:,iblk) )
+
+      enddo                     ! iblk
+
+      end subroutine get_forcing_atmo_ready
+
+!=======================================================================
+!
+!BOP
+!
+! !IROUTINE: prepare_forcing_from_oasis - finish manipulating forcing
+!
+! !INTERFACE:
+!
+      subroutine prepare_forcing_from_oasis (nx_block, ny_block, &
+                                  ilo, ihi, jlo, jhi, &
+                                  hm,                 &
+                                  Tair,               &
+                                  fsw,      flw,      &
+                                  frain,    fsnow,    &
+                                  Qa,       rhoa,     &
+                                  uatm,     vatm,     &
+                                  strax,    stray,    &
+                                  zlvl,     wind,     &
+                                  swvdr,    swvdf,    &
+                                  swidr,    swidf,    &
+                                  potT,     ANGLET,   &
+                                  Tsfc,     sst,      &
+                                  aice)
+!
+! !DESCRIPTION:
+!
+! !REVISION HISTORY:
+!
+! authors: S. Ofarell (adapted/revised from prepare_forcing)
+!
+! !USES:
+!
+! !INPUT/OUTPUT PARAMETERS:
+!
+      integer (kind=int_kind), intent(in) :: &
+         nx_block, ny_block  ! block dimensions
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block), intent(in) :: &
+         Tair    , & ! air temperature  (K)
+         ANGLET  , & ! ANGLE converted to T-cells
+         Tsfc    , & ! ice skin temperature
+         sst     , & ! sea surface temperature
+         aice    , & ! ice area fraction
+         hm          ! land mask
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block), &
+         intent(inout) :: &
+         fsw     , & ! incoming shortwave radiation (W/m^2)
+         frain   , & ! rainfall rate (kg/m^2 s)
+         fsnow   , & ! snowfall rate (kg/m^2 s)
+         Qa      , & ! specific humidity (kg/kg)
+         rhoa    , & ! air density (kg/m^3)
+         uatm    , & ! wind velocity components (m/s)
+         vatm    , &
+         strax   , & ! wind stress components (N/m^2)
+         stray   , &
+         zlvl    , & ! atm level height (m)
+         wind    , & ! wind speed (m/s)
+         flw     , & ! incoming longwave radiation (W/m^2)
+         swvdr   , & ! sw down, visible, direct  (W/m^2)
+         swvdf   , & ! sw down, visible, diffuse (W/m^2)
+         swidr   , & ! sw down, near IR, direct  (W/m^2)
+         swidf   , & ! sw down, near IR, diffuse (W/m^2)
+         potT        ! air potential temperature  (K)
+
+      ! as in the dummy atm (latm)
+      real (kind=dbl_kind), parameter :: &
+         frcvdr = 0.28_dbl_kind, & ! frac of incoming sw in vis direct band
+         frcvdf = 0.24_dbl_kind, & ! frac of incoming sw in vis diffuse band
+         frcidr = 0.31_dbl_kind, & ! frac of incoming sw in near IR direct band
+         frcidf = 0.17_dbl_kind    ! frac of incoming sw in near IR diffuse band
+!
+!EOP
+!
+      integer (kind=int_kind) :: &
+         i, j, &
+         ilo,ihi,jlo,jhi    ! beginning and end of physical domain
+
+      real (kind=dbl_kind) :: workx, worky, &
+         fcc, sstk, rtea, ptem, qlwm, &
+         flwd
+
+      do j = jlo, jhi
+      do i = ilo, ihi
+
+      !-----------------------------------------------------------------
+      ! make sure interpolated values are physically realistic
+      !-----------------------------------------------------------------
+         fsw  (i,j) = max(fsw(i,j),c0)
+         fsnow(i,j) = max(fsnow(i,j),c0)
+         frain(i,j) = max(frain(i,j),c0)
+         Qa   (i,j) = max(Qa(i,j),c0)
+
+      enddo                     ! i
+      enddo                     ! j
+
+      !-----------------------------------------------------------------
+      ! calculations specific to datasets  ( no need! ...omitted... )
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! Compute other fields needed by model
+      !-----------------------------------------------------------------
+
+      do j = jlo, jhi
+      do i = ilo, ihi
+
+         zlvl(i,j) = c10
+         potT(i,j) = Tair(i,j)
+
+        ! divide shortwave into spectral bands
+         swvdr(i,j) = fsw(i,j)*frcvdr        ! visible direct
+         swvdf(i,j) = fsw(i,j)*frcvdf        ! visible diffuse
+         swidr(i,j) = fsw(i,j)*frcidr        ! near IR direct
+         swidf(i,j) = fsw(i,j)*frcidf        ! near IR diffuse
+
+      !-----------------------------------------------------------------
+      ! longwave, Rosati and Miyakoda, JPO 18, p. 1607 (1988) - sort of
+      !-----------------------------------------------------------------
+         flwd=flw(i,j)             ! read in throug oasis
+         flw(i,j) = flwd * hm(i,j) ! land mask
+
+         if (calc_strair) then
+
+            wind(i,j) = sqrt(uatm(i,j)**2 + vatm(i,j)**2)
+
+      !-----------------------------------------------------------------
+      ! Rotate zonal/meridional vectors to local coordinates.
+      ! Velocity comes in on T grid, but is oriented geographically ---
+      ! need to rotate to pop-grid FIRST using ANGLET
+      ! then interpolate to the U-cell centers  (otherwise we
+      ! interpolate across the pole).
+      ! Use ANGLET which is on the T grid !
+      ! Atmo variables are needed in T cell centers in subroutine
+      ! atmo_boundary_layer, and are interpolated to the U grid later as
+      ! necessary.
+      !-----------------------------------------------------------------
+
+!bi003: 20090109--set 'rotate_wind' option in case oasis sends U, V as scalars
+!     NOTE different namcouple is used for oasis this case!
+!-----------------------------------------------------------------------------     
+           if (rotate_winds) then
+             workx      = uatm(i,j) ! wind velocity, m/s
+             worky      = vatm(i,j)
+             uatm (i,j) = workx*cos(ANGLET(i,j)) & ! convert to POP grid
+                          + worky*sin(ANGLET(i,j))   ! note uatm, vatm, wind
+             vatm (i,j) = worky*cos(ANGLET(i,j)) & !  are on the T-grid here
+                          - workx*sin(ANGLET(i,j))
+           endif 
+         else  ! strax, stray, wind are read from files
+           if (rotate_winds) then
+             workx      = strax(i,j) ! wind stress
+             worky      = stray(i,j)
+             strax(i,j) = workx*cos(ANGLET(i,j)) & ! convert to POP grid
+                        + worky*sin(ANGLET(i,j))   ! note strax, stray, wind
+             stray(i,j) = worky*cos(ANGLET(i,j)) & !  are on the T-grid here
+                        - workx*sin(ANGLET(i,j))
+           endif
+        endif                   ! calc_strair
+
+      enddo                     ! i
+      enddo                     ! j
+
+      return
+      end subroutine prepare_forcing_from_oasis
+
+#endif
 
 !=======================================================================
 !BOP
@@ -1790,7 +2082,6 @@
 !
 ! EOP
 ! 
-#ifdef ncdf 
 !local parameters
 
     character (char_len_long) :: & 
@@ -1826,13 +2117,13 @@
 
     real (kind=dbl_kind), parameter :: & ! coefficients for Hyland-Wexler Qa 
        ps1 = 0.58002206e4_dbl_kind,    & ! (K) 
-       ps2 = 1.3914993_dbl_kind,       & !
+       ps2 = 0.13914993e1_dbl_kind,    & !
        ps3 = 0.48640239e-1_dbl_kind,   & ! (K^-1) 
        ps4 = 0.41764768e-4_dbl_kind,   & ! (K^-2)
        ps5 = 0.14452093e-7_dbl_kind,   & ! (K^-3)
-       ps6 = 6.5459673_dbl_kind,       & !
+       ps6 = 0.65459673e1_dbl_kind,    & !
        ws1 = 621.97_dbl_kind,          & ! for saturation mixing ratio 
-       Pair = 1020._dbl_kind             ! Sea level pressure (hPa) 
+       Pair = 1020_dbl_kind              ! Sea level pressure (hPa) 
        
       ! for interpolation of hourly data                
       integer (kind=int_kind) :: &
@@ -1931,7 +2222,7 @@
         frain(:,:,:) = c0            ! this is available in hourlymet_rh file
   
       enddo ! nblocks
-#endif
+
       end subroutine rct_data
 
 !=======================================================================
@@ -3375,7 +3666,7 @@
             do i = 1, nx_block
                sss(i,j,iblk) = max(sss(i,j,iblk), c0)
                if (trim(Tfrzpt) == 'constant') then
-                  Tf (i,j,iblk) = -1.8_dbl_kind ! deg C
+                  Tf (i,j,iblk) = Tocnfrz ! deg C
                else ! default:  Tfrzpt = 'linear_S'
                   Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
                endif
@@ -3568,10 +3859,12 @@
 
       endif
 
+#ifndef ACCICE
 !echmod - currents cause Fram outflow to be too large
               ocn_frc_m(:,:,:,4,:) = c0
               ocn_frc_m(:,:,:,5,:) = c0
 !echmod
+#endif
 
       end subroutine ocn_data_ncar_init
 
@@ -3694,7 +3987,7 @@
         do i = 1, nx_block 
           sss (i,j,:) = max (sss(i,j,:), c0) 
             if (trim(Tfrzpt) == 'constant') then
-               Tf (i,j,:) = -1.8_dbl_kind ! deg C
+               Tf (i,j,:) = Tocnfrz ! deg C
             else ! default:  Tfrzpt = 'linear_S'
                Tf (i,j,:) = -depressT * sss(i,j,:) ! deg C
             endif

@@ -54,6 +54,11 @@
       use ice_domain_size
       use ice_constants
       use ice_blocks
+
+#ifdef AusCOM
+      use cpl_parameters, only : cst_ocn_albedo, ocn_albedo
+      use ice_grid, only : TLAT
+#endif  
 !
 !EOP
 !
@@ -71,6 +76,13 @@
          albicei , & ! near-ir ice albedo for h > ahmax
          albsnowv, & ! cold snow albedo, visible
          albsnowi, & ! cold snow albedo, near IR
+#if defined(AusCOM) || defined(ACCICE)
+         snowpatch, & ! parameter for fractional snow area (m)
+         dT_mlt   , & ! change in temp to give dalb_mlt 
+                      ! albedo change
+         dalb_mlt , & ! albedo change per dT_mlt change
+                      ! in temp for ice
+#endif
          ahmax       ! thickness above which ice albedo is constant (m)
 
       ! category albedos
@@ -111,6 +123,11 @@
       ! for delta Eddington
       real (kind=dbl_kind) :: &
          exp_min              ! minimum exponential value
+
+#ifdef AusCOM
+      real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks) :: &
+         ocn_albedo2D
+#endif
 
 !=======================================================================
 
@@ -219,6 +236,7 @@
 
                Sswabsn(:,:,sl1:sl2,iblk) = c0
 
+#ifndef AusCOM
                call shortwave_ccsm3(nx_block,     ny_block,           &
                               icells,                                 &
                               indxi,             indxj,               &
@@ -233,7 +251,30 @@
                               fswthrun(:,:,n,iblk), &
                               Iswabsn(:,:,il1:il2,iblk),              &
                               albicen(:,:,n,iblk),albsnon(:,:,n,iblk))
+#else
+               if (cst_ocn_albedo) then
+                 ocn_albedo2D(:,:,iblk) = ocn_albedo
+               else
+                 ocn_albedo2D(:,:,iblk) = 0.069 - 0.011 * cos(2.0*TLAT(:,:,iblk))
+                 !latitude-dependent profile of Large & Yeager (2009)
+               endif
 
+               call shortwave_ccsm3(nx_block,     ny_block,           &
+                              icells,                                 &
+                              indxi,             indxj,               &
+                              aicen(:,:,n,iblk), vicen(:,:,n,iblk),   &
+                              vsnon(:,:,n,iblk),                      &
+                              trcrn(:,:,nt_Tsfc,n,iblk),              &
+                              swvdr(:,:,  iblk), swvdf(:,:,  iblk),   &
+                              swidr(:,:,  iblk), swidf(:,:,  iblk),   &
+                              alvdrn(:,:,n,iblk),alidrn(:,:,n,iblk),  &
+                              alvdfn(:,:,n,iblk),alidfn(:,:,n,iblk),  &
+                              fswsfcn(:,:,n,iblk),fswintn(:,:,n,iblk),&
+                              fswthrun(:,:,n,iblk), & 
+                              Iswabsn(:,:,il1:il2,iblk), &
+                              albicen(:,:,n,iblk),albsnon(:,:,n,iblk), &
+                              ocn_albedo2D(:,:,iblk) )
+#endif
             enddo  ! ncat
          enddo     ! nblocks
 
@@ -319,6 +360,7 @@
 !
 ! !INTERFACE:
 !
+#ifndef AusCOM
       subroutine shortwave_ccsm3 (nx_block, ny_block, &
                                   icells,             &
                                   indxi,    indxj,    &
@@ -331,6 +373,21 @@
                                   fswsfc,   fswint,   &
                                   fswthru,  Iswabs,   &
                                   albin,    albsn)
+#else
+      subroutine shortwave_ccsm3 (nx_block, ny_block, &
+                                  icells,             &
+                                  indxi,    indxj,    &
+                                  aicen,    vicen,    &
+                                  vsnon,    Tsfcn,    &
+                                  swvdr,    swvdf,    &
+                                  swidr,    swidf,    &
+                                  alvdrn,   alidrn,   &
+                                  alvdfn,   alidfn,   &
+                                  fswsfc,   fswint,   &
+                                  fswthru,  Iswabs,   &
+                                  albin,    albsn,    &
+                                  ocn_albedo2Da)
+#endif
 !
 ! !DESCRIPTION:
 !
@@ -394,10 +451,15 @@
          alvdfns, & ! visible, diffuse, snow  (fraction)
          alidfns    ! near-ir, diffuse, snow  (fraction)
 
+#ifdef AusCOM
+      real (kind=dbl_kind), dimension (nx_block,ny_block), intent(in) :: &
+         ocn_albedo2Da
+#endif
+
       !-----------------------------------------------------------------
       ! Compute albedos for ice and snow.
       !-----------------------------------------------------------------
-
+#ifndef AusCOM
       if (trim(albedo_type) == 'constant') then
          call constant_albedos (nx_block,   ny_block, &
                                 icells,               &
@@ -410,7 +472,7 @@
                                 alvdfns,    alidfns,  &
                                 alvdrn,     alidrn,   &
                                 alvdfn,     alidfn,   &
-                                albin,      albsn)
+                                albin,      albsn)    
       else ! default
          call compute_albedos (nx_block,   ny_block, &
                                icells,               &
@@ -423,9 +485,40 @@
                                alvdfns,    alidfns,  &
                                alvdrn,     alidrn,   &
                                alvdfn,     alidfn,   &
-                               albin,      albsn)
+                               albin,      albsn)    
+      endif
+#else
+      if (trim(albedo_type) == 'constant') then
+         call constant_albedos (nx_block,   ny_block, &
+                                icells,               &
+                                indxi,      indxj,    &
+                                aicen,                &
+                                vsnon,      Tsfcn,    &
+                                alvdrni,    alidrni,  &
+                                alvdfni,    alidfni,  &
+                                alvdrns,    alidrns,  &
+                                alvdfns,    alidfns,  &
+                                alvdrn,     alidrn,   &
+                                alvdfn,     alidfn,   &
+                                albin,      albsn,    &
+                                ocn_albedo2Da)
+      else ! default
+         call compute_albedos (nx_block,   ny_block, &
+                               icells,               &
+                               indxi,      indxj,    &
+                               aicen,      vicen,    &
+                               vsnon,      Tsfcn,    &
+                               alvdrni,    alidrni,  &
+                               alvdfni,    alidfni,  &
+                               alvdrns,    alidrns,  &
+                               alvdfns,    alidfns,  &
+                               alvdrn,     alidrn,   &
+                               alvdfn,     alidfn,   &
+                               albin,      albsn,    &
+                               ocn_albedo2Da)
       endif
 
+#endif
       !-----------------------------------------------------------------
       ! Compute solar radiation absorbed in ice and penetrating to ocean.
       !-----------------------------------------------------------------
@@ -454,6 +547,7 @@
 !
 ! !INTERFACE:
 !
+#ifndef AusCOM
       subroutine compute_albedos (nx_block, ny_block, &
                                   icells,             &
                                   indxi,    indxj,    &
@@ -466,6 +560,21 @@
                                   alvdrn,   alidrn,   &
                                   alvdfn,   alidfn,   &
                                   albin,    albsn)
+#else
+      subroutine compute_albedos (nx_block, ny_block, &
+                                  icells,             &
+                                  indxi,    indxj,    &
+                                  aicen,    vicen,    &
+                                  vsnon,    Tsfcn,    &
+                                  alvdrni,  alidrni,  &
+                                  alvdfni,  alidfni,  &
+                                  alvdrns,  alidrns,  &
+                                  alvdfns,  alidfns,  &
+                                  alvdrn,   alidrn,   &
+                                  alvdfn,   alidfn,   &
+                                  albin,    albsn,    &
+                                  ocn_albedo2Da)
+#endif
 !
 ! !DESCRIPTION:
 !
@@ -511,14 +620,20 @@
          alidfn   , & ! near-ir, diffuse, avg  (fraction)
          albin    , & ! bare ice 
          albsn        ! snow 
+#ifdef AusCOM
+      real (kind=dbl_kind), dimension (nx_block,ny_block), intent(in) :: &
+         ocn_albedo2Da
+#endif
 !
 !EOP
 !
       real (kind=dbl_kind), parameter :: &
+#if !defined(AusCOM) && !defined(ACCICE)
          dT_mlt    = c1          , & ! change in temp to give dalb_mlt 
                                      ! albedo change
          dalb_mlt  = -0.075_dbl_kind, & ! albedo change per dT_mlt change
                                      ! in temp for ice
+#endif
          dalb_mltv = -p1         , & ! albedo vis change per dT_mlt change
                                      ! in temp for snow
          dalb_mlti = -p15            ! albedo nir change per dT_mlt change
@@ -544,6 +659,7 @@
 
       do j = 1, ny_block
       do i = 1, nx_block
+#ifndef AusCOM
          alvdrni(i,j) = albocn
          alidrni(i,j) = albocn
          alvdfni(i,j) = albocn
@@ -558,7 +674,22 @@
          alidrn(i,j) = albocn
          alvdfn(i,j) = albocn
          alidfn(i,j) = albocn
+#else
+         alvdrni(i,j) = ocn_albedo2Da(i,j)
+         alidrni(i,j) = ocn_albedo2Da(i,j)
+         alvdfni(i,j) = ocn_albedo2Da(i,j)
+         alidfni(i,j) = ocn_albedo2Da(i,j)
 
+         alvdrns(i,j) = ocn_albedo2Da(i,j)
+         alidrns(i,j) = ocn_albedo2Da(i,j)
+         alvdfns(i,j) = ocn_albedo2Da(i,j)
+         alidfns(i,j) = ocn_albedo2Da(i,j)
+
+         alvdrn(i,j) = ocn_albedo2Da(i,j)
+         alidrn(i,j) = ocn_albedo2Da(i,j)
+         alvdfn(i,j) = ocn_albedo2Da(i,j)
+         alidfn(i,j) = ocn_albedo2Da(i,j)
+#endif
          albin(i,j) = c0
          albsn(i,j) = c0
       enddo         
@@ -580,7 +711,11 @@
 
          ! bare ice, thickness dependence
          fh = min(atan(hi*c4)/fhtan,c1)
+#ifndef AusCOM
          albo = albocn*(c1-fh)
+#else
+         albo = ocn_albedo2Da(i,j)*(c1-fh)
+#endif
          alvdfni(i,j) = albicev*fh + albo
          alidfni(i,j) = albicei*fh + albo
 
@@ -591,8 +726,13 @@
          alidfni(i,j) = alidfni(i,j) - dalb_mlt*fT
 
          ! avoid negative albedos for thin, bare, melting ice
+#ifndef AusCOM
          alvdfni(i,j) = max (alvdfni(i,j), albocn)
          alidfni(i,j) = max (alidfni(i,j), albocn)
+#else
+         alvdfni(i,j) = max (alvdfni(i,j), ocn_albedo2Da(i,j))
+         alidfni(i,j) = max (alidfni(i,j), ocn_albedo2Da(i,j))
+#endif
 
          if (hs > puny) then
 
@@ -646,6 +786,7 @@
 !
 ! !INTERFACE:
 !
+#ifndef AusCOM
       subroutine constant_albedos (nx_block, ny_block, &
                                   icells,             &
                                   indxi,    indxj,    &
@@ -658,6 +799,21 @@
                                   alvdrn,   alidrn,   &
                                   alvdfn,   alidfn,   &
                                   albin,    albsn)
+#else
+      subroutine constant_albedos (nx_block, ny_block, &
+                                  icells,             &
+                                  indxi,    indxj,    &
+                                  aicen,              &
+                                  vsnon,    Tsfcn,    &
+                                  alvdrni,  alidrni,  &
+                                  alvdfni,  alidfni,  &
+                                  alvdrns,  alidrns,  &
+                                  alvdfns,  alidfns,  &
+                                  alvdrn,   alidrn,   &
+                                  alvdfn,   alidfn,   &
+                                  albin,    albsn,   &
+                                  ocn_albedo2Da)
+#endif
 !
 ! !DESCRIPTION:
 !
@@ -702,6 +858,10 @@
          alidfn   , & ! near-ir, diffuse, avg  (fraction)
          albin    , & ! bare ice 
          albsn        ! snow 
+#ifdef AusCOM
+      real (kind=dbl_kind), dimension (nx_block,ny_block), intent(in) :: &
+         ocn_albedo2Da
+#endif
 !
 !EOP
 !
@@ -722,11 +882,17 @@
 
       do j = 1, ny_block
       do i = 1, nx_block
+#ifndef AusCOM
          alvdrn(i,j) = albocn
          alidrn(i,j) = albocn
          alvdfn(i,j) = albocn
          alidfn(i,j) = albocn
-
+#else
+         alvdrn(i,j) = ocn_albedo2Da(i,j)
+         alidrn(i,j) = ocn_albedo2Da(i,j)
+         alvdfn(i,j) = ocn_albedo2Da(i,j)
+         alidfn(i,j) = ocn_albedo2Da(i,j)
+#endif
          albin(i,j) = c0
          albsn(i,j) = c0
       enddo

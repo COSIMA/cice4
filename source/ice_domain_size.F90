@@ -35,7 +35,11 @@
         nx_global = NXGLOB    , & ! i-axis size
         ny_global = NYGLOB    , & ! j-axis size
         ncat      =   5       , & ! number of categories
+#ifdef AusCOM
+        nilyr     = N_ILYR    , & ! number of ice layers per category
+#else
         nilyr     =   4       , & ! number of ice layers per category
+#endif
         ntilyr    = ncat*nilyr, & ! number of ice layers in all categories
         nslyr     =   1       , & ! number of snow layers per category
         ntslyr    = ncat*nslyr, & ! number of snow layers in all categories

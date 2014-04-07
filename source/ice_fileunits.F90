@@ -60,8 +60,13 @@
          nu_hdr        , &  ! header file for binary history output
          nu_diag            ! diagnostics output file
 
+#ifndef AusCOM
       character (6), parameter :: &
          nml_filename = 'ice_in' ! namelist input file name
+#else
+      character (11), parameter :: &
+         nml_filename = 'cice_in.nml' ! namelist input file name
+#endif
 
       integer (kind=int_kind), parameter :: &
          ice_stdin  =  5, & ! reserved unit for standard input
@@ -91,9 +96,12 @@ contains
 !  This routine grabs needed unit numbers. 
 !  nu_diag is set to 6 (stdout) but may be reset later by the namelist. 
 !  nu_nml is obtained separately.
-
+#ifndef AusCOM
          nu_diag = ice_stdout  ! default
-
+#else
+         nu_diag = 111
+         open(nu_diag,file='ice_diag_out',form='formatted')  ! status='new')
+#endif
          ice_IOUnitsInUse = .false.
          ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
          ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 6
@@ -197,7 +205,11 @@ contains
          call release_fileunit(nu_rst_pointer)
          call release_fileunit(nu_history)
          call release_fileunit(nu_hdr)
+#ifndef AusCOM
          if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
+#else
+         close(nu_diag)
+#endif
 
  end subroutine release_all_fileunits
 

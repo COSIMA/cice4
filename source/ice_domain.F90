@@ -478,7 +478,7 @@
 
    if (nblocks_max > max_blocks) then
      write(outstring,*) &
-         'ice: no. blocks exceed max: increase max to', nblocks_max
+         'Fatal error !!! ice: no. blocks exceed max: increase max to', nblocks_max
      call abort_ice(trim(outstring))
    else if (nblocks_max < max_blocks) then
      write(outstring,*) &

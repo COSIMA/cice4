@@ -840,6 +840,15 @@
                               ntrcr,     icells,     &
                               indxi,     indxj,      &
                               tmask,     dt,         &
+#ifdef AusCOM
+!B: revisit this part later--
+!   this new version routine does include dummies fresh & fsalt...
+!   need change ?...?
+!                              fresh     , &
+!                              fsalt     , &
+!?                              fresh_hist, &
+!?                              fsalt_hist, &
+#endif
                               aicen,     trcrn,      &
                               vicen,     eicen,      &
                               aice0,     aice,       &
@@ -857,6 +866,9 @@
       use ice_age, only: tr_iage
       use ice_mechred, only: tr_lvl
       use ice_flux, only: update_ocn_f
+#ifdef AusCOM
+      use cpl_parameters, only: pop_icediag
+#endif
 
 ! !INPUT/OUTPUT PARAMETERS:
 !
@@ -945,6 +957,15 @@
          dfresh       , & ! change in fresh
          dfsalt           ! change in fsalt
 
+#ifdef AusCOM
+!      real (kind=dbl_kind), dimension(nx_block,ny_block), &
+!         intent(inout) :: &
+!         fresh     , & ! fresh water flux to ocean (kg/m^2/s)
+!         fsalt     , & ! salt flux to ocean (kg/m^2/s)
+!?         fresh_hist, & ! fresh water flux to ocean (kg/m^2/s)
+!?         fsalt_hist    ! salt flux to ocean (kg/m^2/s)
+#endif
+
       integer (kind=int_kind) :: &
          jcells, kcells     , & ! grid cell counters
          ij, m                  ! combined i/j horizontal indices
@@ -1025,6 +1046,21 @@
       !       is NOT included in fluxes fresh and fsalt.
       !-----------------------------------------------------------------
 
+!
+!20100413: back to original code and set update_ocn_f=.t. in namelist!
+!
+!#ifdef AusCOM
+!      if (.not. pop_icediag) then      ! for MOM4 frazil approach
+!         dfresh = -rhoi*vi0new(ij)/dt  !'cos MOM4 had not already adjusted itself
+!                                       ! based on frzmlt when calculating frazil.
+!         dfsalt = ice_ref_salinity*p001*dfresh
+!
+!         fresh(i,j)      = fresh(i,j)      + dfresh
+!!?         fresh_hist(i,j) = fresh_hist(i,j) + dfresh
+!         fsalt(i,j)      = fsalt(i,j)      + dfsalt
+!!?         fsalt_hist(i,j) = fsalt_hist(i,j) + dfsalt
+!      endif
+!#else
          if (update_ocn_f) then
             dfresh = -rhoi*vi0new(ij)/dt 
             dfsalt = ice_ref_salinity*p001*dfresh
@@ -1032,6 +1068,7 @@
             fresh(i,j)      = fresh(i,j)      + dfresh
             fsalt(i,j)      = fsalt(i,j)      + dfsalt
          endif
+!#endif
 
       !-----------------------------------------------------------------
       ! Decide how to distribute the new ice.

@@ -36,6 +36,10 @@
       logical (kind=log_kind) :: &
          calc_strair ! if true, calculate wind stress components
 
+#if defined(AusCOM) || defined(ACCICE)
+      real (kind=dbl_kind) :: &
+         iceruf ! def. 0.0005_dbl_kind, ice surface roughness (m)
+#endif
 !=======================================================================
 
       contains
