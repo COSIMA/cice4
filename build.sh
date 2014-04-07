@@ -1,0 +1,97 @@
+#! /bin/csh -f
+
+set echo on
+
+if ( $#argv != 3 ) then
+  echo '*** Please issue the command like ***'
+  echo '     > ./comp_auscom_cice.sh <platform> <driver> <resolution>' 
+  echo 'e.g. comp_auscom_cice.sh nci access-om 1440x1080'
+  echo '    platform: the machine to run on.'
+  echo '    driver: which driver to use.'
+  echo '    resolution: grid resolution longitude by latitude.'
+  exit
+else
+  set platform = $1
+  set driver = $2
+  set resolution = $3
+endif
+
+# Location of this model (source)
+setenv SRCDIR $cwd
+setenv CBLD   $SRCDIR/bld
+                                                                                
+source $CBLD/config.$platform.$resolution
+
+### Specialty code
+setenv USE_ESMF no        # set to yes for ESMF runs
+setenv CAM_ICE  no        # set to yes for CAM runs (single column)
+setenv SHRDIR   csm_share # location of CCSM shared code
+setenv NETCDF   yes       # set to no if netcdf library is unavailable
+setenv DITTO    no        # reproducible diagnostics
+setenv ACCESS   yes       # set to yes for ACCESS
+setenv OASIS3_MCT yes	  # oasis3-mct version
+
+### Location and names of coupling libraries and inclusions
+if ( $ACCESS == 'yes' ) then
+    # Location and names of coupling libraries
+    setenv CPLLIBDIR ../oasis3-mct/Linux/lib
+    setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
+    setenv CPLINCDIR ..//oasis3-mct/Linux/build/lib
+    setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
+endif
+ 
+### Location and name of the generated exectuable
+setenv EXE cice_${NTASK}p.exe
+
+### Where this model is compiled
+setenv OBJDIR $SRCDIR/compile/build_{$NTASK}p
+if !(-d $OBJDIR) mkdir -p $OBJDIR
+
+# These variables are set in the appropriate bld/config
+@ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK
+@ m = $a / $b ; setenv MXBLCKS $m ; if ($MXBLCKS == 0) setenv MXBLCKS 1
+echo Autimatically generated: MXBLCKS = $MXBLCKS
+                                                                                
+cp -f $CBLD/Makefile.std $CBLD/Makefile
+
+if ($NTASK == 1) then
+   setenv COMMDIR serial
+else
+   setenv COMMDIR mpi
+endif
+echo COMMDIR: $COMMDIR
+                                                                                
+set N_ILYR = 4
+setenv DRVDIR $driver
+                                                                                
+if ($driver == 'access-om') then
+  # For "Zero-Layer" ice configuration (ACCESS version)
+  set N_ILYR = 1
+endif
+                                                                                
+cd $OBJDIR
+                                                                                
+### List of source code directories (in order of importance).
+cat >! Filepath << EOF
+$SRCDIR/drivers/$DRVDIR
+$SRCDIR/source
+$SRCDIR/$COMMDIR
+$SRCDIR/$SHRDIR
+EOF
+                                                                                
+cc -o makdep $CBLD/makdep.c || exit 2
+
+make VPFILE=Filepath EXEC=$EXE \
+           NXGLOB=$NXGLOB NYGLOB=$NYGLOB \
+           N_ILYR=$N_ILYR \
+           BLCKX=$BLCKX BLCKY=$BLCKY MXBLCKS=$MXBLCKS \
+      -j 8 -f  $CBLD/Makefile MACFILE=$CBLD/Macros.$platform || exit 2
+                                                                                
+cd ..
+pwd
+echo NTASK = $NTASK
+echo "global N, block_size"
+echo "x    $NXGLOB,    $BLCKX"
+echo "y    $NYGLOB,    $BLCKY"
+echo max_blocks = $MXBLCKS
+

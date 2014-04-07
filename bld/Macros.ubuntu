@@ -1,0 +1,74 @@
+#==============================================================================
+# Makefile macros for xe.nci.org.au, an SGI ALTIX system running Linux
+# Note:  Use the -mp flag if precision is critical.   It slows down the 
+#        code by 25% (or more).
+#==============================================================================
+
+INCLDIR    := -I. -I/usr/include
+SLIBS      := 
+ULIBS      := 
+CPP        := cpp
+
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX -DPAROPT
+FC         := mpif90
+CFLAGS     := -c -O2
+FIXEDFLAGS := -132
+FREEFLAGS  := 
+
+ifeq ($(DEBUG), yes)
+    FFLAGS     := -O0 -fdefault-real-8 -traceback -g -debug all -no-vec -w -no-vec -mcmodel=medium
+else
+    FFLAGS     := -O3 -fdefault-real-8 -g -w -mcmodel=medium
+endif
+
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v
+
+CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
+            -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) -lmpi
+endif
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+ifeq ($(NETCDF), yes)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   SLIBS   := -lnetcdf -lnetcdff
+endif
+
+ifeq ($(USE_ESMF), yes)
+   CPPDEFS :=  $(CPPDEFS) -Duse_esmf
+   INCLDIR :=  $(INCLDIR) -I ???
+   SLIBS   :=  $(SLIBS) -L ??? -lesmf -lcprts -lrt -ldl
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lpsmile.${CHAN}
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmct
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmpeu
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lscrip
+   SLIBS   := $(SLIBS) $(LIBAUSCOM_LIBS)
+endif
+
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+# no MOM just CICE+UM
+ifeq ($(NOMOM), yes)
+   CPPDEFS := $(CPPDEFS) -DNOMOM
+endif
+ifeq ($(OASIS3_MCT), yes)
+   CPPDEFS := $(CPPDEFS) -DOASIS3_MCT
+endif
