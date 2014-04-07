@@ -1,0 +1,39 @@
+------------------------------------------------------------------------
+r292 | eclare | 2010-07-21 09:08:24 +1000 (Wed, 21 Jul 2010) | 3 lines
+
+Merging r281:290 into release-4.1 branch.
+
+
+------------------------------------------------------------------------
+r282 | eclare | 2010-06-04 06:08:29 +1000 (Fri, 04 Jun 2010) | 4 lines
+
+Merging trunk r277:281 into release, including bug fix in ice_history.F90 for 
+allocatable arrays.
+
+
+------------------------------------------------------------------------
+r277 | eclare | 2010-05-06 08:00:53 +1000 (Thu, 06 May 2010) | 3 lines
+
+CICE v4.1 updated documentation.
+
+
+------------------------------------------------------------------------
+r276 | eclare | 2010-05-06 07:49:36 +1000 (Thu, 06 May 2010) | 1 line
+
+
+------------------------------------------------------------------------
+r150 | eclare | 2008-09-06 05:46:07 +1000 (Sat, 06 Sep 2008) | 8 lines
+
+
+Bringing the repository release tag up to date with the code currently
+released on the web site.  These changes only affect volume tracers, 
+specifically only ice age in the standard configuration.  Thanks to Dave
+Bailey for pointing these out.
+
+
+
+------------------------------------------------------------------------
+r145 | eclare | 2008-08-13 08:10:42 +1000 (Wed, 13 Aug 2008) | 1 line
+
+
+------------------------------------------------------------------------
