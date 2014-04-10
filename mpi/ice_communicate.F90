@@ -30,6 +30,11 @@
    use cpl_oasis4
 #endif
 
+!#if defined AusCOM
+!   use cpl_parameters, only : il_commlocal
+!   use cpl_interface,  only : prism_init
+!#endif
+
    implicit none
    private
    save
@@ -96,6 +101,8 @@
 !
 !-----------------------------------------------------------------------
 
+#ifndef AusCOM
+
 #if (defined key_oasis3 || defined key_oasis4)
     ice_comm = localComm       ! communicator from NEMO/OASISn 
 #else
@@ -112,14 +119,17 @@
 #else
    call MPI_INIT(ierr)
 #endif
-
    call MPI_BARRIER (ice_comm, ierr)
    call MPI_COMM_DUP(ice_comm, MPI_COMM_ICE, ierr)
+   master_task = 0
 
 #endif
 
-   master_task = 0
    call MPI_COMM_RANK  (MPI_COMM_ICE, my_task, ierr)
+
+#else
+   master_task = 0
+#endif
 
    mpiR16 = MPI_REAL16
    mpiR8  = MPI_REAL8
