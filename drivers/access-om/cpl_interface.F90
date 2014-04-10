@@ -23,9 +23,6 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
-  ! Debugging and runtime checking. 
-  use debug_field_mod
-
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
