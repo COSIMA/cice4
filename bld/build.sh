@@ -31,15 +31,17 @@ setenv DITTO    no        # reproducible diagnostics
 setenv AusCOM   yes       
 if ($driver == 'access-cm') then
     setenv ACCESS   yes       
+else
+    setenv ACCESS   no       
 endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
 
 ### Location and names of coupling libraries and inclusions
-if ( $ACCESS == 'yes' ) then
+if ( $AusCOM == 'yes' ) then
     # Location and names of coupling libraries
-    setenv CPLLIBDIR ../oasis3-mct/Linux/lib
+    setenv CPLLIBDIR ../coupler/Linux/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR ..//oasis3-mct/Linux/build/lib
+    setenv CPLINCDIR ../coupler/Linux/build/lib
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
  
