@@ -28,7 +28,10 @@ setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
 setenv NETCDF   yes       # set to no if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
-setenv ACCESS   yes       # set to yes for ACCESS
+setenv AusCOM   yes       
+if ($driver == 'access-cm') then
+    setenv ACCESS   yes       
+endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
 
 ### Location and names of coupling libraries and inclusions
