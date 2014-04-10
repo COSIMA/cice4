@@ -16,7 +16,7 @@ else
   set resolution = $3
 endif
 
-# Location of this model (source)
+# Location of this model
 setenv SRCDIR $cwd
 setenv CBLD   $SRCDIR/bld
                                                                                 
@@ -39,9 +39,9 @@ setenv OASIS3_MCT yes	  # oasis3-mct version
 ### Location and names of coupling libraries and inclusions
 if ( $AusCOM == 'yes' ) then
     # Location and names of coupling libraries
-    setenv CPLLIBDIR ../coupler/Linux/lib
+    setenv CPLLIBDIR $SRCDIR/../coupler/Linux/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR ../coupler/Linux/build/lib
+    setenv CPLINCDIR $SRCDIR/../coupler/Linux/build/lib
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
  
@@ -49,7 +49,7 @@ endif
 setenv EXE cice_${NTASK}p.exe
 
 ### Where this model is compiled
-setenv OBJDIR $SRCDIR/compile/build_{$NTASK}p
+setenv OBJDIR $SRCDIR/build_{$NTASK}p
 if !(-d $OBJDIR) mkdir -p $OBJDIR
 
 # These variables are set in the appropriate bld/config
