@@ -261,7 +261,7 @@
       write_restart=0
 
 #ifdef AusCOM
-      write(il_out,*) '(calendar) ttime = ', ttime
+      !write(il_out,*) '(calendar) ttime = ', ttime
 #endif
       sec = mod(ttime,secday)           ! elapsed seconds into date at
                                         ! end of dt
@@ -298,9 +298,9 @@
       idate = (nyr+year_init-1)*10000 + month*100 + mday ! date (yyyymmdd) 
 
 #ifdef AusCOM
-      write(il_out,*) '(calendar) runtime0 = ', runtime0
-      write(il_out,*) '(calendar) nyr, year_init, month, mday = ', nyr, year_init, month, mday
-      write(il_out,*) '(calendar)  idate = ', idate
+      !write(il_out,*) '(calendar) runtime0 = ', runtime0
+      !write(il_out,*) '(calendar) nyr, year_init, month, mday = ', nyr, year_init, month, mday
+      !write(il_out,*) '(calendar)  idate = ', idate
 #endif
       if (istep >= npt+1)  stop_now = 1
       if (nyr   /= nyrp)   new_year = .true.
