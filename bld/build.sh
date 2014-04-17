@@ -69,7 +69,7 @@ echo COMMDIR: $COMMDIR
 set N_ILYR = 4
 setenv DRVDIR $driver
                                                                                 
-if ($driver == 'access-om') then
+if ($driver == 'access-cm') then
   # For "Zero-Layer" ice configuration (ACCESS version)
   set N_ILYR = 1
 endif
