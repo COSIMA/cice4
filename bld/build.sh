@@ -46,7 +46,7 @@ if ( $AusCOM == 'yes' ) then
 endif
  
 ### Location and name of the generated exectuable
-setenv EXE cice_${NTASK}p.exe
+setenv EXE cice_${driver}_${resolution}_${NTASK}p.exe
 
 ### Where this model is compiled
 setenv OBJDIR $SRCDIR/build_{$NTASK}p
