@@ -257,7 +257,7 @@
       ! variables ('mice')saved at the end of last run from ice models; 
       ! for initial run, pre-processed o2i (and maybe mice) fields are required.
 !      call get_restart_o2i('o2i.nc')
-      call get_restart_o2i(trim(restartdir)//'/o2i.nc')
+      call get_restart_o2i(trim(inputdir)//'/o2i.nc')
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !if no lag for ice to atm coupling, then cice has to read restart file i2a.nc and 
@@ -267,10 +267,10 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !      if ( file_exist('CICE_restart/mice.nc') ) then
-      if ( file_exist(trim(restartdir)//'/mice.nc') ) then
+      if ( file_exist(trim(inputdir)//'/mice.nc') ) then
         !for continue runs, mice data MUST be available.
 !        call get_restart_mice('CICE_restart/mice.nc')
-        call get_restart_mice(trim(restartdir)//'/mice.nc')
+        call get_restart_mice(trim(inputdir)//'/mice.nc')
       else
 write(6,*)'*** CICE WARNING: No initial mice.nc data available here! **'
 write(6,*)'*** CICE WARNING: ALL mice variables will be set to ZERO! **'
