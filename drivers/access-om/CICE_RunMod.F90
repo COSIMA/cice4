@@ -148,8 +148,8 @@
       !    last run from ocn and ice model;
       ! initial run needs the pre-processed o2i and i2o fields.
 
-      call get_time0_o2i_fields('INPUT/o2i.nc')
-      call get_time0_i2o_fields('INPUT/i2o.nc')
+      call get_time0_o2i_fields('o2i.nc')
+      call get_time0_i2o_fields('i2o.nc')
       call get_sicemass('INPUT/sicemass.nc')
 
       if (use_core_nyf_runoff) then 
@@ -297,7 +297,7 @@
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
       stimestamp_io = stimestamp_io + dt_cpl_io
 
-      call save_time0_i2o_fields('INPUT/i2o.nc', stimestamp_io) 
+      call save_time0_i2o_fields('i2o.nc', stimestamp_io) 
 
       call save_u_star('RESTART/u_star.nc',stimestamp_io)    
 

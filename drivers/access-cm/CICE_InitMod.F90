@@ -257,7 +257,7 @@
       ! variables ('mice')saved at the end of last run from ice models; 
       ! for initial run, pre-processed o2i (and maybe mice) fields are required.
 !      call get_restart_o2i('o2i.nc')
-      call get_restart_o2i(trim(inputdir)//'/o2i.nc')
+      call get_restart_o2i('o2i.nc')
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !if no lag for ice to atm coupling, then cice has to read restart file i2a.nc and 
