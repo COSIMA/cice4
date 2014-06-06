@@ -32,6 +32,9 @@
       use ice_read_write
       use ice_fileunits
       use ice_timers
+#ifdef AusCOM
+      use cpl_parameters, only: runtime0
+#endif
 !
 !EOP
 !
@@ -104,6 +107,8 @@
 
       logical (kind=log_kind) :: diag
 
+#ifndef AusCOM
+
       ! construct path/file
       if (present(filename_spec)) then
          filename = trim(filename_spec)
@@ -124,6 +129,35 @@
         write(nu_rst_pointer,'(a)') filename
         close(nu_rst_pointer)
       endif
+
+#else
+!B: back to the CICE3.14 convention, ie, no path ahead of the iced.xxxxx:
+!   for the restart filename in restart pointer file (doing so to make 
+!   sure the cice model works all right with the current AusCOM setup) 
+!   -- this old CICE3.14 convention may be dropped later when confident --
+
+      write(filename,'(a,a,i8.8)') &
+         restart_file(1:lenstr(restart_file)),'.',idate
+      if (my_task == master_task) then
+        open(nu_rst_pointer,file=pointer_file)
+        write(nu_rst_pointer,'(a)') filename
+        close(nu_rst_pointer)
+      endif
+
+      ! construct path/file
+      if (present(filename_spec)) then
+         filename = trim(filename_spec)
+      else
+         iyear = nyr + year_init - 1
+         imonth = month
+         iday = mday
+
+         write(filename,'(a,a,a,i8.8)') &
+              restart_dir(1:lenstr(restart_dir)), &
+              restart_file(1:lenstr(restart_file)),'.',idate
+      end if
+
+#endif
 
       ! begin writing restart data
       call ice_open(nu_dump,filename,0)
@@ -274,6 +308,11 @@
          open(nu_rst_pointer,file=pointer_file)
          read(nu_rst_pointer,'(a)') filename0
          filename = trim(filename0)
+#ifdef AusCOM
+         write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
+         filename = trim(restart_dir)//trim(filename)
+         write(nu_diag,*) 'XXX: restart file => ', filename
+#endif
          close(nu_rst_pointer)
          write(nu_diag,*) 'Read ',pointer_file(1:lenstr(pointer_file))
       endif
@@ -285,7 +324,11 @@
          read (nu_restart) istep0,time,time_forc
          write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
       endif
+#ifndef AusCOM
       call calendar(time)
+#else
+      call calendar(time-runtime0)
+#endif
 
       call broadcast_scalar(istep0,master_task)
 

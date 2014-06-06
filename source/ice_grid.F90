@@ -38,6 +38,10 @@
       use ice_read_write
       use ice_timers
       use ice_exit
+
+#ifdef AusCOM
+      use cpl_parameters, only : use_umask
+#endif
 !
 !EOP
 !
@@ -323,8 +327,10 @@
 
          do j = jlo, jhi
          do i = ilo, ihi
+#ifndef AusCOM
             tarea(i,j,iblk) = dxt(i,j,iblk)*dyt(i,j,iblk)
             uarea(i,j,iblk) = dxu(i,j,iblk)*dyu(i,j,iblk)
+#endif
             if (tarea(i,j,iblk) > c0) then
                tarear(i,j,iblk) = c1/tarea(i,j,iblk)
             else
@@ -399,6 +405,7 @@
          call abort_ice ('ice: init_grid: ANGLE out of expected range')
       endif
 
+#ifndef AusCOM
       !-----------------------------------------------------------------
       ! Compute ANGLE on T-grid
       !-----------------------------------------------------------------
@@ -432,6 +439,7 @@
          enddo
          enddo
       enddo
+#endif
       
       call ice_timer_start(timer_bound)
       call ice_HaloUpdate (ANGLET,           halo_info, &
@@ -439,7 +447,9 @@
                            fillValue=c1)
       call ice_timer_stop(timer_bound)
 
+!#ifndef AusCOM
       call makemask          ! velocity mask, hemisphere masks
+!#endif
 
       call Tlatlon           ! get lat, lon on the T grid
 
@@ -616,7 +626,25 @@
 ! (6) HUW   (cm)         \\
 ! (7) ANGLE (radians)
 !
+#ifdef AusCOM
+! we also let cice read in the following fields to avoid possible mismatch
+! between cice and mom4.
+! ( 8) TLAT
+! ( 9) TLON
+! (10) TAREA
+! (11) UAREA
+! (12) ANGLET
+! the following fields are also available in grid.nc but not read in 'cos they
+! are not critical 
+!  LONT_BONDS
+!  LATT_BONDS
+!  LONU_BONDS
+!  LATU_BONDS
+#endif
 ! Land mask record number and field is (1) KMT.
+#ifdef AusCOM
+! Land mask field KMU is also read in from kmt.nc (optional)!
+#endif
 !
 ! !REVISION HISTORY:
 !
@@ -676,6 +704,31 @@
          enddo
       enddo
 
+#ifdef AusCOM
+      if ( use_umask ) then  
+      fieldname='kmu'
+      call ice_read_nc(fid_kmt,1,fieldname,work1,diag, &
+                       field_loc=field_loc_center, &
+                       field_type=field_type_scalar)
+
+      uvm(:,:,:) = c0
+      do iblk = 1, nblocks
+         this_block = get_block(blocks_ice(iblk),iblk)
+         ilo = this_block%ilo
+         ihi = this_block%ihi
+         jlo = this_block%jlo
+         jhi = this_block%jhi
+
+         do j = jlo, jhi
+         do i = ilo, ihi
+            uvm(i,j,iblk) = work1(i,j,iblk)
+            if (uvm(i,j,iblk) >= c1) uvm(i,j,iblk) = c1
+         enddo
+         enddo
+      enddo
+      endif  
+#endif
+
       !-----------------------------------------------------------------
       ! lat, lon, angle
       !-----------------------------------------------------------------
@@ -684,6 +737,11 @@
 
       fieldname='ulat'
       call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! ULAT
+#ifdef AusCOM
+      !Note 'accurate' vertices 'latt_bounds' etc are also available in 
+      !     grid.nc file. but since they are only used for history output, 
+      !     not important, so let cice itself work out the estimates...
+#endif
       call gridbox_verts(work_g1,latt_bounds)       
       call scatter_global(ULAT, work_g1, master_task, distrb_info, &
                           field_loc_NEcorner, field_type_scalar)
@@ -706,6 +764,51 @@
       ! fix ANGLE: roundoff error due to single precision
       where (ANGLE >  pi) ANGLE =  pi
       where (ANGLE < -pi) ANGLE = -pi
+
+#ifdef AusCOM
+      fieldname='tlat'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! TLAT
+      !call gridbox_verts(work_g1,latu_bounds)
+      !note 'latu_bounds' etc are calculated in routine 'gridbox_corners'
+      call scatter_global(TLAT, work_g1, master_task, distrb_info, &
+                          field_loc_center, field_type_scalar)
+      call ice_HaloExtrapolate(TLAT, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
+      fieldname='tlon'
+      call ice_read_global_nc(fid_grid,2,fieldname,work_g1,diag) ! TLON
+      !call gridbox_verts(work_g1,lont_bounds)
+      !.......................................
+      call scatter_global(TLON, work_g1, master_task, distrb_info, &
+                          field_loc_center, field_type_scalar)
+      call ice_HaloExtrapolate(TLON, distrb_info, &
+                               ew_boundary_type, ns_boundary_type)
+
+      fieldname='angleT'
+      call ice_read_global_nc(fid_grid,7,fieldname,work_g1,diag) ! ANGLET
+      call scatter_global(ANGLET, work_g1, master_task, distrb_info, &
+                          field_loc_center, field_type_scalar)
+
+      ! fix ANGLET: roundoff error due to single precision
+      where (ANGLET >  pi) ANGLET =  pi
+      where (ANGLET < -pi) ANGLET = -pi
+
+      fieldname='tarea'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! TAREA
+      call scatter_global(TAREA, work_g1, master_task, distrb_info, &
+                          field_loc_center, field_type_scalar)
+      !call ice_HaloExtrapolate(TAREA, distrb_info, &
+      !                         ew_boundary_type, ns_boundary_type)
+      ! ... to be done in init_grid2 after callint this routine ...
+
+      fieldname='uarea'
+      call ice_read_global_nc(fid_grid,1,fieldname,work_g1,diag) ! TAREA
+      call scatter_global(UAREA, work_g1, master_task, distrb_info, &
+                          field_loc_NEcorner, field_type_scalar)
+      !call ice_HaloExtrapolate(UAREA, distrb_info, &
+      !                         ew_boundary_type, ns_boundary_type)
+      ! ... to be done in init_grid2 after calling this routine ...
+#endif
 
       !-----------------------------------------------------------------
       ! cell dimensions
@@ -1222,6 +1325,9 @@
       ! construct T-cell and U-cell masks
       !-----------------------------------------------------------------
 
+#ifdef AusCOM
+      if ( .not. use_umask ) then
+#endif
       do iblk = 1, nblocks
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
@@ -1236,7 +1342,9 @@
          enddo
          enddo
       enddo
-
+#ifdef AusCOM
+      endif
+#endif
       call ice_timer_start(timer_bound)
       call ice_HaloUpdate (uvm,                halo_info, &
                            field_loc_NEcorner, field_type_scalar)
@@ -1325,6 +1433,7 @@
       type (block) :: &
            this_block           ! block information for current block
 
+#ifndef AusCOM
       TLAT(:,:,:) = c0
       TLON(:,:,:) = c0
 
@@ -1388,6 +1497,10 @@
       call ice_HaloExtrapolate(TLAT, distrb_info, &
                                ew_boundary_type, ns_boundary_type)
       call ice_timer_stop(timer_bound)
+#else
+      !AusCOM does NOT calculate TLON, TLAT. Instead, they are read in 
+      !  from grid.nc (see routine popgrid_nc)
+#endif
 
       x1 = global_minval(TLON, distrb_info, tmask)
       x2 = global_maxval(TLON, distrb_info, tmask)

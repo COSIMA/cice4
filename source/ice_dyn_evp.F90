@@ -48,6 +48,11 @@
       use ice_communicate, only: my_task, master_task
       use ice_domain_size
       use ice_constants
+
+#ifdef AusCOM
+      use cpl_parameters    !, only : use_ocnslope
+      use cpl_arrays_setup, only : sicemass
+#endif
 !
 !EOP
 !
@@ -69,16 +74,27 @@
          yield_curve  ! 'ellipse' ('teardrop' needs further testing)
                                                                       ! 
       real (kind=dbl_kind), parameter :: &
+#if !defined(AusCOM) && !defined(ACCICE)
          dragw = dragio * rhow, &
                          ! drag coefficient for water on ice *rhow (kg/m^3)
+#endif
          eyc = 0.36_dbl_kind, &
                          ! coefficient for calculating the parameter E
+#if !defined(AusCOM) && !defined(ACCICE)
          cosw = c1   , & ! cos(ocean turning angle)  ! turning angle = 0
          sinw = c0   , & ! sin(ocean turning angle)  ! turning angle = 0
+#endif
          a_min = p001, & ! minimum ice area
          m_min = p01     ! minimum ice mass (kg/m^2)
 
       real (kind=dbl_kind) :: &
+#if defined(AusCOM) || defined(ACCICE)
+       ! auscom1 has these in namelist
+         dragio   , & ! ice-ocn drag coefficient
+         cosw     , & ! cos(ocean turning angle)  ! 
+         sinw     , & ! sin(ocean turning angle)  ! 
+         dragw    , & ! drag coefficient for water on ice *rhow (kg/m^3)
+#endif
          ecci     , & ! 1/e^2
          dtei     , & ! 1/dte, where dte is subcycling timestep (1/s)
          dte2T    , & ! dte/2T
@@ -227,6 +243,10 @@
 
       enddo                     ! iblk
 
+#ifdef AusCOM
+      sicemass(:,:,:) = tmass(:,:,:)
+#endif
+
       call ice_timer_start(timer_bound)
       call ice_HaloUpdate (icetmask,          halo_info, &
                            field_loc_center,  field_type_scalar)
@@ -248,6 +268,11 @@
       strairx(:,:,:) = strax(:,:,:)
       strairy(:,:,:) = stray(:,:,:)
 #else
+#ifdef ACCESS
+      !This wind stress is on T grid and multiplied by aice (in get_sbc_ice)
+      strairx = strax
+      strairy = stray
+#endif
       call t2ugrid_vector(strairx)
       call t2ugrid_vector(strairy)
 #endif
@@ -391,6 +416,9 @@
                uvel    (:,:,iblk), vvel    (:,:,iblk), & 
                uocn    (:,:,iblk), vocn    (:,:,iblk), & 
                aiu     (:,:,iblk),                     &
+#if defined(AusCOM) || defined(ACCICE)
+               fm      (:,:,iblk),                     &
+#endif
                strocnx (:,:,iblk), strocny (:,:,iblk), & 
                strocnxT(:,:,iblk), strocnyT(:,:,iblk))
 
@@ -879,9 +907,14 @@
          fm(i,j) = fcor(i,j)*umass(i,j)   ! Coriolis * mass
 
          ! for ocean stress
+#if defined(AusCOM) || defined(ACCICE)
+         ! direction of rotation depends on the hemisphere
+         waterx(i,j) = uocn(i,j)*cosw - vocn(i,j)*sinw*sign(1.,real(fm(i,j)))
+         watery(i,j) = vocn(i,j)*cosw + uocn(i,j)*sinw*sign(1.,real(fm(i,j)))
+#else
          waterx(i,j) = uocn(i,j)*cosw - vocn(i,j)*sinw
          watery(i,j) = vocn(i,j)*cosw + uocn(i,j)*sinw
-
+#endif
          ! combine tilt with wind stress
 #ifndef coupled
          ! calculate tilt from geostrophic currents if needed
@@ -890,6 +923,13 @@
 #else
          strtltx(i,j) = -gravit*umass(i,j)*ss_tltx(i,j)
          strtlty(i,j) = -gravit*umass(i,j)*ss_tlty(i,j)
+#endif
+
+#ifdef AusCOM
+         if (.not. use_ocnslope) then  !03/06/08: the ocn sfc slope naugty?
+           strtltx(i,j) = -fm(i,j)*vocn(i,j)
+           strtlty(i,j) =  fm(i,j)*uocn(i,j)
+        endif
 #endif
          forcex(i,j) = strairx(i,j) + strtltx(i,j)
          forcey(i,j) = strairy(i,j) + strtlty(i,j)
@@ -1338,6 +1378,10 @@
       !-----------------------------------------------------------------
       ! integrate the momentum equation
       !-----------------------------------------------------------------
+#if defined(AusCOM) || defined(ACCICE)
+         dragw = dragio * rhow
+                         ! drag coefficient for water on ice *rhow (kg/m^3)
+#endif
 
       do ij =1, icellu
          i = indxui(ij)
@@ -1355,7 +1399,16 @@
 
          ! alpha, beta are defined in Hunke and Dukowicz (1997), section 3.2
          cca = umassdtei(i,j) + vrel * cosw      ! alpha, kg/m^2 s
+#if defined(AusCOM) || defined(ACCICE)
+         if (fm(i,j)<0.) then
+         ! rotate to opposite direction in the Southern Hemisphere
+            ccb = fm(i,j)        - vrel * sinw      ! beta,  kg/m^2 s
+         else
+            ccb = fm(i,j)        + vrel * sinw      ! beta,  kg/m^2 s
+         endif
+#else
          ccb = fm(i,j)        + vrel * sinw      ! beta,  kg/m^2 s
+#endif
          ab2 = cca**2 + ccb**2
 
          ! divergence of the internal stress tensor
@@ -1377,9 +1430,14 @@
       ! ocean-ice stress for coupling
       ! here, strocn includes the factor of aice
       !-----------------------------------------------------------------
+!#ifndef AusCOM
          strocnx(i,j) = taux
          strocny(i,j) = tauy
-
+!#else     
+!         !revisit here later!... ==> the conversion below is done in evp_finish!   
+!         strocnx(i,j) = taux / aiu(i,j)
+!         strocny(i,j) = tauy / aiu(i,j)
+!#endif
       enddo                     ! ij
 
       end subroutine stepu
@@ -1397,6 +1455,9 @@
                              uvel,     vvel,     &
                              uocn,     vocn,     &
                              aiu,                &
+#if defined(AusCOM) || defined(ACCICE)
+                             fm,                 &
+#endif
                              strocnx,  strocny,  &
                              strocnxT, strocnyT) 
 !
@@ -1427,6 +1488,9 @@
          vvel    , & ! y-component of velocity (m/s)
          uocn    , & ! ocean current, x-direction (m/s)
          vocn    , & ! ocean current, y-direction (m/s)
+#if defined(AusCOM) || defined(ACCICE)
+         fm      , & ! Coriolis param. * mass in U-cell (kg/s)
+#endif
          aiu         ! ice fraction on u-grid
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), &
@@ -1457,11 +1521,25 @@
 
          vrel = dragw*sqrt((uocn(i,j) - uvel(i,j))**2 + &
                            (vocn(i,j) - vvel(i,j))**2)  ! m/s
+#if defined(AusCOM) || defined(ACCICE)
+         if (fm(i,j)<0.) then
+         ! rotate to opposite direction in the Southern Hemisphere
+            strocnx(i,j) = strocnx(i,j) &
+                 - vrel*(uvel(i,j)*cosw + vvel(i,j)*sinw) * aiu(i,j)
+            strocny(i,j) = strocny(i,j) &
+                 - vrel*(vvel(i,j)*cosw - uvel(i,j)*sinw) * aiu(i,j)
+         else
+            strocnx(i,j) = strocnx(i,j) &
+                 - vrel*(uvel(i,j)*cosw - vvel(i,j)*sinw) * aiu(i,j)
+            strocny(i,j) = strocny(i,j) &
+                 - vrel*(vvel(i,j)*cosw + uvel(i,j)*sinw) * aiu(i,j)
+         endif
+#else
          strocnx(i,j) = strocnx(i,j) &
                       - vrel*(uvel(i,j)*cosw - vvel(i,j)*sinw) * aiu(i,j)
          strocny(i,j) = strocny(i,j) &
                       - vrel*(vvel(i,j)*cosw + uvel(i,j)*sinw) * aiu(i,j)
-
+#endif
          ! Prepare to convert to T grid
          ! divide by aice for coupling
          strocnxT(i,j) = strocnx(i,j) / aiu(i,j)

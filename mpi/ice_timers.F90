@@ -69,6 +69,13 @@
       timer_cplsend,          &! send to coupled
       timer_sndrcv,           &! time between send to receive
 #endif
+#ifdef AusCOM
+      timer_from_ocn,          &! 
+      timer_into_ocn,          &! 
+      timer_from_atm,          &!
+      timer_into_atm,          &! 
+#endif
+
       timer_bound              ! boundary updates
 !      timer_tmp                ! for temporary timings
 
@@ -204,6 +211,13 @@
    call get_ice_timer(timer_cplsend,  'Cpl-Send', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_sndrcv,   'Snd->Rcv', nblocks,distrb_info%nprocs)
 #endif
+#ifdef AusCOM
+   call get_ice_timer(timer_from_ocn,   'from_ocn', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_into_ocn,   'into_ocn', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_from_atm,   'from_atm', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_into_atm,   'into_atm', nblocks,distrb_info%nprocs)
+#endif
+
 !   call get_ice_timer(timer_tmp,      '         ',nblocks,distrb_info%nprocs)
 
 !-----------------------------------------------------------------------

@@ -2227,10 +2227,15 @@
          n                , & ! category index
          ij                   ! combined horizontal index
 
+#if defined(ACCICE)
+      real (kind=dbl_kind) :: &
+         max_error ! max error in zero layer energy check
+                   ! (so max volume error = puny)
+#else
       real (kind=dbl_kind), parameter :: &
          max_error = puny*Lfresh*rhos ! max error in zero layer energy check
                                       ! (so max volume error = puny)
-
+#endif
       logical (kind=log_kind) :: &
          ice_energy_correct  , & ! zero layer ice energy check
          snow_energy_correct     ! zero layer snow energy check
@@ -2238,7 +2243,9 @@
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
-
+#if defined(ACCICE)
+      max_error = puny*Lfresh*rhos
+#endif
       l_stop = .false.
       istop = 0
       jstop = 0

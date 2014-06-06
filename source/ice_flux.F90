@@ -366,7 +366,7 @@
       frzmlt(:,:,:) = c0              ! freezing/melting potential (W/m^2)
       sss   (:,:,:) = 34.0_dbl_kind   ! sea surface salinity (o/oo)
       if (trim(Tfrzpt) == 'constant') then
-         Tf    (:,:,:) = -1.8_dbl_kind   ! freezing temp (C)     
+         Tf    (:,:,:) = Tocnfrz   ! freezing temp (C)     
       else ! default:  Tfrzpt = 'linear_S'
          Tf    (:,:,:) = -depressT*sss(:,:,:)  ! freezing temp (C)
       endif

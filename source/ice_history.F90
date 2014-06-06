@@ -47,6 +47,9 @@
       use ice_blocks
       use ice_read_write
       use ice_fileunits
+#ifdef AusCOM
+      use cpl_parameters, only: caltype
+#endif
 !
 !EOP
 !
@@ -1386,6 +1389,10 @@
       use ice_blocks
       use ice_domain
       use ice_grid, only: tmask, lmask_n, lmask_s
+#ifdef AusCOM
+      use ice_grid, only: umask
+      use ice_shortwave, only: awtvdr, awtidr, awtvdf, awtidf
+#endif
       use ice_calendar, only: new_year, secday, yday, write_history, &
                               write_ic, time, histfreq, nstreams
       use ice_state
@@ -1798,12 +1805,30 @@
 
               do j = jlo, jhi
               do i = ilo, ihi
+#ifdef AusCOM
+                 if (n_uocn(ns)==n.or.n_vocn(ns)==n) then
+                    if (.not. umask(i,j,iblk)) then ! mask out land points
+                       a2D(i,j,n,iblk) = spval
+                    else                            ! convert units
+                       a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
+                            * ravgct + avail_hist_fields(n)%conb
+                    endif
+                 else
+                    if (.not. tmask(i,j,iblk)) then ! mask out land points
+                       a2D(i,j,n,iblk) = spval
+                    else                            ! convert units
+                       a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
+                            * ravgct + avail_hist_fields(n)%conb
+                    endif
+                 endif
+#else
                  if (.not. tmask(i,j,iblk)) then ! mask out land points
                     a2D(i,j,n,iblk) = spval
                  else                            ! convert units
                     a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
                                    * ravgct + avail_hist_fields(n)%conb
                  endif
+#endif
               enddo             ! i
               enddo             ! j
 
@@ -2087,7 +2112,10 @@
       use ice_calendar, only: time, sec, idate, idate0, nyr, month, &
                               mday, write_ic, histfreq, histfreq_n, &
                               year_init, new_year, new_month, new_day, &
-                              dayyr, daymo, days_per_year
+                              dayyr, daymo, days_per_year, start_pos, prev_month
+#ifdef AusCOM
+      use cpl_parameters, only: caltype
+#endif
       use ice_work, only: work_g1, work_gr, work_gr3, work1
       use ice_restart, only: lenstr, runid
       use ice_domain, only: distrb_info
@@ -2113,7 +2141,7 @@
       integer (kind=int_kind), dimension(3) :: dimidex
       real (kind=real_kind) :: ltime
       character (char_len) :: title
-      character (char_len_long) :: ncfile(max_nstrm)
+      character (char_len_long), save :: ncfile(max_nstrm)
 
       integer (kind=int_kind) :: iyear, imonth, iday
       integer (kind=int_kind) :: icategory,ind,i_aice,boundid
@@ -2148,11 +2176,58 @@
       TYPE(coord_attributes), dimension(nvar_verts) :: var_nverts
       TYPE(coord_attributes), dimension(nvarz) :: var_nz
       CHARACTER (char_len), dimension(ncoord) :: coord_bounds
+      LOGICAL   :: l_create_nc
+
+      l_create_nc = .TRUE.
 
       if (my_task == master_task) then
-
+#if defined(AusCOM) || defined(ACCICE)
+        if (histfreq(ns) == 'm' .or. histfreq(ns) == 'M') then
+            if (month /= 1) then
+                ltime=time/int(secday)-real(daymo(month-1))/2.0
+            else
+                ltime=time/int(secday)-real(daymo(12))/2.0
+            endif
+        else if(histfreq(ns) == 'd') then 
+            ltime=time/int(secday) - 1
+        else
+            ltime=time/int(secday)
+        endif
+#else
         ltime=time/int(secday)
+#endif
 
+        iyear = nyr + year_init - 1 ! set year_init=1 in ice_in to get iyear=nyr
+        imonth = month
+        iday = mday
+
+         if (hist_avg) then
+          if (new_year) then  !daily and monthly results are output after this day and this month
+           iyear = iyear - 1
+           imonth = 12
+           iday = daymo(imonth)
+          elseif (new_month) then
+           imonth = month - 1
+           iday = daymo(imonth)
+          elseif (new_day) then
+           iday = iday - 1
+          endif
+         endif
+
+!        write (nu_diag,*) '----------icecdf----------- '
+!        write (nu_diag,*) 'iyear, imonth, iday: ', iyear, imonth, iday
+!        write (nu_diag,*) 'prev_month, start_pos, ns: ', prev_month, start_pos, ns
+
+         if ( ((histfreq(ns) == '1' .or. histfreq(ns) == 'h' .or. &
+             histfreq(ns) == 'd' ) .and. imonth /= prev_month(ns) ) .or. &
+             histfreq(ns) == 'm' .or. histfreq(ns) == 'y' .or. write_ic) then
+                l_create_nc = .TRUE.  ! to create new netCDF file
+                start_pos(ns) = 1
+         else
+                l_create_nc = .FALSE.  !to append data to existing netCDF file
+         endif
+
+      if (l_create_nc) then  
         call construct_filename(ncfile(ns),'nc',ns)
 
         ! add local directory path name to ncfile
@@ -2166,7 +2241,14 @@
         status = nf90_create(ncfile(ns), nf90_clobber, ncid)
         if (status /= nf90_noerr) call abort_ice( &
            'ice: Error creating history ncfile '//ncfile(ns))
+     else
+        !open file to append data
+        status = nf90_open(ncfile(ns), nf90_write, ncid)
+        if (status /= nf90_noerr) call abort_ice( &
+           'ice: Error opening history ncfile '//ncfile(ns))
+     endif
 
+     if (l_create_nc ) then 
       !-----------------------------------------------------------------
       ! define dimensions
       !-----------------------------------------------------------------
@@ -2223,17 +2305,25 @@
         status = nf90_put_att(ncid,varid,'units',title)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: time units')
-
+#ifdef AusCOM
+        if (caltype == 0) then
+           status = nf90_put_att(ncid,varid,'calendar','noleap')
+        else if (caltype == 1) then
+           status = nf90_put_att(ncid,varid,'calendar','proleptic_gregorian')
+        else   !'default'
+          status = nf90_put_att(ncid,varid,'calendar','360_day')
+        endif   
+#else
         if (days_per_year == 360) then
            status = nf90_put_att(ncid,varid,'calendar','360_day')
-           if (status /= nf90_noerr) call abort_ice( &
-                         'ice Error: time calendar')
+        else if (days_per_year == 366) then
+           status = nf90_put_att(ncid,varid,'calendar','leap')
         else
            status = nf90_put_att(ncid,varid,'calendar','noleap')
-           if (status /= nf90_noerr) call abort_ice( &
-                         'ice Error: time calendar')
         endif
-
+#endif
+        if (status /= nf90_noerr) call abort_ice( &
+             'ice Error: time calendar')
         if (hist_avg) then
           status = nf90_put_att(ncid,varid,'bounds','time_bounds')
           if (status /= nf90_noerr) call abort_ice( &
@@ -2708,12 +2798,20 @@
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute contents')
 
+#ifdef AusCOM
+        title  = 'sea ice model: Community Ice Code (AusCOM/CICE4.1)'
+#else
         title  = 'sea ice model: Community Ice Code (CICE)'
+#endif
         status = nf90_put_att(ncid,nf90_global,'source',title)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute source')
 
+#ifdef AusCOM
+        write(title,'(a,i3,a)') 'This Year Has ',int(dayyr),' days'
+#else
         write(title,'(a,i3,a)') 'All years have exactly ',int(dayyr),' days'
+#endif
         status = nf90_put_att(ncid,nf90_global,'comment',title)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute comment')
@@ -2751,6 +2849,7 @@
 
         status = nf90_enddef(ncid)
         if (status /= nf90_noerr) call abort_ice('ice: Error in nf90_enddef')
+    endif ! if (l_create_nc)
 
       !-----------------------------------------------------------------
       ! write time variable
@@ -2759,7 +2858,7 @@
         status = nf90_inq_varid(ncid,'time',varid)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error getting time varid')
-        status = nf90_put_var(ncid,varid,ltime)
+        status = nf90_put_var(ncid,varid,ltime, (/start_pos(ns)/))
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error writing time variable')
 
@@ -2771,10 +2870,10 @@
           status = nf90_inq_varid(ncid,'time_bounds',varid)
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error getting time_bounds id')
-          status = nf90_put_var(ncid,varid,time_beg(ns),start=(/1/))
+          status = nf90_put_var(ncid,varid,time_beg(ns),start=(/1,start_pos(ns)/))
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error writing time_beg')
-          status = nf90_put_var(ncid,varid,time_end(ns),start=(/2/))
+          status = nf90_put_var(ncid,varid,time_end(ns),start=(/2,start_pos(ns)/))
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error writing time_end')
         endif
@@ -2817,7 +2916,7 @@
               if (my_task == master_task) work_gr = work_g1*rad_to_deg
           END SELECT
           
-          if (my_task == master_task) then
+          if (my_task == master_task .and. l_create_nc) then
              status = nf90_inq_varid(ncid, coord_var(i)%short_name, varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'ice: Error getting varid for '//coord_var(i)%short_name)
@@ -2832,7 +2931,7 @@
         do i = 1, nvarz
           if (igrdz(i)) then
           call broadcast_scalar(var_nz(i)%short_name,master_task)
-          if (my_task == master_task) then
+          if (my_task == master_task .and. l_create_nc) then
              status = nf90_inq_varid(ncid, var_nz(i)%short_name, varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'ice: Error getting varid for '//var_nz(i)%short_name)
@@ -2856,7 +2955,7 @@
 
       if (igrd(n_tmask)) then
       call gather_global(work_g1, hm, master_task, distrb_info)
-      if (my_task == master_task) then
+      if (my_task == master_task .and. l_create_nc) then
         work_gr=work_g1
         status = nf90_inq_varid(ncid, 'tmask', varid)
         if (status /= nf90_noerr) call abort_ice( &
@@ -2893,7 +2992,7 @@
             call gather_global(work_g1, ANGLET,master_task, distrb_info)
         END SELECT
 
-        if (my_task == master_task) then
+        if (my_task == master_task .and. l_create_nc) then
           work_gr=work_g1
           status = nf90_inq_varid(ncid, var(i)%req%short_name, varid)
           if (status /= nf90_noerr) call abort_ice( &
@@ -2950,7 +3049,7 @@
         enddo
         END SELECT
 
-        if (my_task == master_task) then
+        if (my_task == master_task .and. l_create_nc) then
           status = nf90_inq_varid(ncid, var_nverts(i)%short_name, varid)
           if (status /= nf90_noerr) call abort_ice( &
              'ice: Error getting varid for '//var_nverts(i)%short_name)
@@ -2961,6 +3060,7 @@
       enddo
       deallocate(work_gr3)
       endif
+
 
       !-----------------------------------------------------------------
       ! write variable data
@@ -2983,8 +3083,8 @@
             status  = nf90_inq_varid(ncid,avail_hist_fields(n)%vname,varid)
             if (status /= nf90_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
-            status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                   count=(/nx_global,ny_global/))
+            status  = nf90_put_var(ncid,varid,work_gr(:,:),  start=(/1,1,start_pos(ns) /), &
+                                   count=(/nx_global,ny_global,1/))
             if (status /= nf90_noerr) call abort_ice( &
                'ice: Error writing variable '//avail_hist_fields(n)%vname)
           endif
@@ -3012,8 +3112,8 @@
              if (status /= nf90_noerr) call abort_ice( &
                 'ice: Error getting varid for '//avail_hist_fields(n)%vname)
              status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                    start=(/        1,        1,k/), &
-                                    count=(/nx_global,ny_global,1/))
+                                    start=(/1,1,k,start_pos(ns)/), &
+                                    count=(/nx_global,ny_global,1,1/))
              if (status /= nf90_noerr) call abort_ice( &
                 'ice: Error writing variable '//avail_hist_fields(n)%vname)
              endif
@@ -3039,8 +3139,8 @@
 
              if (my_task == master_task) then
              status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                    start=(/        1,        1,k/), &
-                                    count=(/nx_global,ny_global,1/))
+                                    start=(/1,1,k,start_pos(ns)/), &
+                                    count=(/nx_global,ny_global,1,1/))
              if (status /= nf90_noerr) call abort_ice( &
                 'ice: Error writing variable '//avail_hist_fields(n)%vname)
            endif
@@ -3066,8 +3166,8 @@
                 work_gr(:,:) = work_g1(:,:)
                 if (my_task == master_task) then
                   status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                         start=(/        1,        1,k,ic/), &
-                                         count=(/nx_global,ny_global,1, 1/))
+                                         start=(/1,1,k,ic,start_pos(ns)/), &
+                                         count=(/nx_global,ny_global,1, 1, 1/))
                   if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error writing variable '//avail_hist_fields(n)%vname)
                 endif
@@ -3094,8 +3194,8 @@
                 work_gr(:,:) = work_g1(:,:)
                 if (my_task == master_task) then
                   status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                         start=(/        1,        1,k,ic/), &
-                                         count=(/nx_global,ny_global,1, 1/))
+                                         start=(/1,1,k,ic,start_pos(ns)/), &
+                                         count=(/nx_global,ny_global,1, 1, 1/))
                   if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error writing variable '//avail_hist_fields(n)%vname)
                 endif
@@ -3107,11 +3207,19 @@
       deallocate(work_gr)
       deallocate(work_g1)
 
+
       !-----------------------------------------------------------------
       ! close output dataset
       !-----------------------------------------------------------------
 
       if (my_task == master_task) then
+      
+         if (histfreq(ns) == '1' .or. histfreq(ns) == 'h' .or. &
+             histfreq(ns) == 'd' ) then
+                prev_month(ns) = imonth
+                start_pos(ns) = start_pos(ns) + 1
+         endif
+
          status = nf90_close(ncid)
          if (status /= nf90_noerr) call abort_ice( &
                        'ice: Error closing netCDF history file')
@@ -3152,6 +3260,9 @@
       use ice_restart, only: lenstr, runid
       use ice_itd, only: c_hi_range
       use ice_calendar, only: write_ic, dayyr, histfreq
+#ifdef AusCOM
+      use cpl_parameters, only: caltype
+#endif
 !
 ! !INPUT/OUTPUT PARAMETERS:
 !
@@ -3197,8 +3308,17 @@
 #ifdef CCSMCOUPLED
         write (nu_hdr, 999) 'runid',runid,' '
 #endif
+#ifdef AusCOM
+        if (caltype == 1) then
+           write (nu_hdr, 999) 'calendar','gregorian',' '
+        else
+           write (nu_hdr, 999) 'calendar','noleap',' '
+        endif
+        write (title,'(a,i3,a)') 'This Year Has ',int(dayyr),' days'
+#else
         write (nu_hdr, 999) 'calendar','noleap',' '
         write (title,'(a,i3,a)') 'All years have exactly ',int(dayyr),' days'
+#endif
         write (nu_hdr, 999) 'comment',title,' '
         write (nu_hdr, 999) 'conventions','CICE',' '
         write (nu_hdr, 997) 'missing_value',spval
@@ -3367,7 +3487,7 @@
       character (len=2), intent(in) :: suffix
       integer (kind=int_kind), intent(in) :: ns
 
-      integer (kind=int_kind) :: iyear, imonth, iday, isec
+      integer (kind=int_kind) :: iyear, imonth, iday, isec, iday_i
 
       character (char_len_long) :: tmpfile
 
@@ -3375,6 +3495,10 @@
         imonth = month
         iday = mday
         isec = sec - dt
+        iday_i = iday  ! day for instantaneous output 
+
+!        write (nu_diag,*) '----------------construct_filename----------- '
+!        write (nu_diag,*) 'iyear, imonth, iday, isec: ', iyear, imonth, iday, isec
 
         ! construct filename
         if (write_ic) then
@@ -3384,9 +3508,7 @@
         else
 
          if (hist_avg) then
-          if (histfreq(ns).eq.'h'.or.histfreq(ns).eq.'H') then
-           ! do nothing
-          elseif (new_year) then
+          if (new_year) then  !daily and monthly results are output after this day and this month 
            iyear = iyear - 1
            imonth = 12
            iday = daymo(imonth)
@@ -3398,21 +3520,24 @@
           endif
          endif
 
+!        write (nu_diag,*) '----------------construct_filename:hist_avg is true ---------- '
+!        write (nu_diag,*) 'iyear, imonth, iday, isec: ', iyear, imonth, iday, isec
+
          if (histfreq(ns) == '1') then ! instantaneous, write every dt
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
+           write(ncfile,'(a,a,i4.4,a,i2.2,a,a)')  &
             history_file(1:lenstr(history_file)),'_inst.', &
-             iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
+             iyear,'-',imonth, '.',suffix
 
          elseif (hist_avg) then    ! write averaged data
 
           if (histfreq(ns).eq.'d'.or.histfreq(ns).eq.'D') then     ! daily
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,a)')  &
+           write(ncfile,'(a,a,i4.4,a,i2.2,a,a)')  &
             history_file(1:lenstr(history_file)), &
-             '.',iyear,'-',imonth,'-',iday,'.',suffix
+             '_day.',iyear,'-',imonth,'.',suffix
           elseif (histfreq(ns).eq.'h'.or.histfreq(ns).eq.'H') then ! hourly
-           write(ncfile,'(a,a,i2.2,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
+           write(ncfile,'(a,a,i2.2,a,i4.4,a,i2.2,a,a)')  &
             history_file(1:lenstr(history_file)),'_',histfreq_n(ns),'h.', &
-             iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
+             iyear,'-',imonth,'.',suffix
           elseif (histfreq(ns).eq.'m'.or.histfreq(ns).eq.'M') then ! monthly
            write(ncfile,'(a,a,i4.4,a,i2.2,a,a)')  &
             history_file(1:lenstr(history_file)),'.', &
@@ -3423,8 +3548,8 @@
           endif
 
          else                     ! instantaneous with histfreq > dt
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
-            history_file(1:lenstr(history_file)),'_inst.', &
+           write(ncfile,'(a,a,i2.2,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
+            history_file(1:lenstr(history_file)),'_inst', histfreq(ns),'t.', &
              iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
          endif
         endif
@@ -3546,6 +3671,9 @@
 
       use ice_domain
       use ice_grid, only: tmask
+#ifdef AusCOM
+      use ice_grid, only: umask
+#endif
       use ice_calendar, only: nstreams
 
 !     !OUTPUT PARAMETERS:
@@ -3583,9 +3711,21 @@
 
        do j = jlo, jhi
        do i = ilo, ihi
+#ifdef AusCOM
+          if (idns==n_uocn(ns).or.idns==n_vocn(ns)) then
+             if (umask(i,j,iblk)) then
+                field(i,j,idns, iblk) = field(i,j,idns, iblk) + field_accum(i,j)
+             endif
+          else
+             if (tmask(i,j,iblk)) then
+                field(i,j,idns, iblk) = field(i,j,idns, iblk) + field_accum(i,j)
+             endif
+          endif
+#else
           if (tmask(i,j,iblk)) then
              field(i,j,idns, iblk) = field(i,j,idns, iblk) + field_accum(i,j)
           endif
+#endif
        enddo
        enddo
 

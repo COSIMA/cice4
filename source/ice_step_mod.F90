@@ -932,7 +932,12 @@
                               fswsfcn(:,:,n,iblk),fswintn(:,:,n,iblk),&
                               fswthrun(:,:,n,iblk),                   &
                               Iswabsn(:,:,il1:il2,iblk),              &
+#ifndef AusCOM
                               albicen(:,:,n,iblk),albsnon(:,:,n,iblk))
+#else
+                              albicen(:,:,n,iblk),albsnon(:,:,n,iblk),&
+                              ocn_albedo2D(:,:,iblk))
+#endif
 
             endif  ! dEdd
          enddo                  ! ncat

@@ -92,6 +92,13 @@
       use ice_shortwave, only: albicev, albicei, albsnowv, albsnowi, ahmax, &
                                shortwave, albedo_type, R_ice, R_pnd, &
                                R_snw
+#if defined(AusCOM) || defined(ACCICE)
+      ! AusCOM specific namelist parameters
+      use ice_dyn_evp, only: cosw, sinw, dragio
+      use ice_shortwave, only: snowpatch, dT_mlt, dalb_mlt
+      use ice_therm_vertical, only: chio
+      use ice_atmo, only: iceruf
+#endif
       use ice_atmo, only: atmbndy, calc_strair
       use ice_transport_driver, only: advection
       use ice_age, only: tr_iage, restart_age
@@ -139,6 +146,16 @@
         kstrength,      krdg_partic,     krdg_redist,   mu_rdg,         &
         heat_capacity,  conduct,         shortwave,     albedo_type,    &
         albicev,        albicei,         albsnowv,      albsnowi,       &
+#if defined(ACCICE)
+        rhoi,           rhos,            kice,          kseaice,        &
+        ksno,           ice_ref_salinity,                               &
+#endif
+#if defined(AusCOM) || defined(ACCICE)
+        snowpatch,      dT_mlt,          dalb_mlt,      awtvdr,         &
+        awtidr,         awtvdf,          awtidf,        Tocnfrz,        &
+        cosw,           sinw,            dragio,        chio,           &
+        iceruf,                                                         &
+#endif
         ahmax,          R_ice,           R_pnd,         R_snw,          &
         atmbndy,        fyear_init,      ycycle,        atm_data_format,&
         atm_data_type,  atm_data_dir,    calc_strair,   calc_Tsfc,      &
@@ -220,6 +237,36 @@
       albsnowv  = 0.98_dbl_kind   ! cold snow albedo, visible
       albsnowi  = 0.70_dbl_kind   ! cold snow albedo, near IR
       ahmax     = 0.3_dbl_kind    ! thickness above which ice albedo is constant (m)
+#if defined(ACCICE)
+      rhos      = 330.0_dbl_kind  ! density of snow (kg/m^3)
+      rhoi      = 917.0_dbl_kind  ! density of ice (kg/m^3)
+      ice_ref_salinity = 4._dbl_kind ! (ppt)
+      kice   = 2.03_dbl_kind      ! thermal conductivity of fresh ice(W/m/deg)
+      kseaice= 2.00_dbl_kind      ! thermal conductivity of sea ice (W/m/deg)
+                                  ! (used in zero layer thermodynamics option)
+      ksno   = 0.30_dbl_kind      ! thermal conductivity of snow  (W/m/deg)
+#endif
+#if defined(AusCOM) || defined(ACCICE)
+      snowpatch = 0.02_dbl_kind   ! parameter for fractional snow area (m)
+! 4 Jan 2007 BPB  Following are appropriate for complete cloud
+! in a summer polar atmosphere with 1.5m bare sea ice surface:
+! .636/.364 vis/nir with only 0.5% direct for each band.
+      awtvdr = 0.00318_dbl_kind   ! visible, direct  ! for history and
+      awtidr = 0.00182_dbl_kind   ! near IR, direct  ! diagnostics
+      awtvdf = 0.63282_dbl_kind   ! visible, diffuse
+      awtidf = 0.36218_dbl_kind   ! near IR, diffuse
+      cosw = c1                   ! cos(ocean turning angle)  ! turning angle = 0
+      sinw = c0                   ! sin(ocean turning angle)  ! turning angle = 0
+      dT_mlt = c1                 ! change in temp to give dalb_mlt 
+                                  ! albedo change
+      dalb_mlt = -0.075_dbl_kind  ! albedo change per dT_mlt change
+                                  ! in temp for ice
+      dragio   = 0.00536_dbl_kind ! ice-ocn drag coefficient
+      Tocnfrz  = -1.8_dbl_kind    ! freezing temp of seawater (C),
+                                  ! used as Tsfcn for open water
+      chio     = 0.006_dbl_kind   ! unitless param for basal heat flx ala McPhee and Maykut
+      iceruf    = 0.0005_dbl_kind ! ice surface roughness (m)
+#endif
       atmbndy   = 'default'       ! or 'constant'
 
       fyear_init = 1900           ! first year of forcing cycle
@@ -422,6 +469,29 @@
       call broadcast_scalar(albsnowv,           master_task)
       call broadcast_scalar(albsnowi,           master_task)
       call broadcast_scalar(ahmax,              master_task)
+#if defined(ACCICE)
+      call broadcast_scalar(rhoi,               master_task)
+      call broadcast_scalar(rhos,               master_task)
+      call broadcast_scalar(ice_ref_salinity,   master_task)
+      call broadcast_scalar(kice,               master_task)
+      call broadcast_scalar(kseaice,            master_task)
+      call broadcast_scalar(ksno,               master_task)
+#endif
+#if defined(AusCOM) || defined(ACCICE)
+      call broadcast_scalar(snowpatch,          master_task)
+      call broadcast_scalar(dT_mlt,             master_task)
+      call broadcast_scalar(dalb_mlt,           master_task)
+      call broadcast_scalar(awtvdr,             master_task)
+      call broadcast_scalar(awtvdf,             master_task)
+      call broadcast_scalar(awtidr,             master_task)
+      call broadcast_scalar(awtidf,             master_task)
+      call broadcast_scalar(cosw,               master_task)
+      call broadcast_scalar(sinw,               master_task)
+      call broadcast_scalar(dragio,             master_task)
+      call broadcast_scalar(chio,               master_task)
+      call broadcast_scalar(Tocnfrz,            master_task)
+      call broadcast_scalar(iceruf,             master_task)
+#endif
       call broadcast_scalar(atmbndy,            master_task)
       call broadcast_scalar(fyear_init,         master_task)
       call broadcast_scalar(ycycle,             master_task)
@@ -546,6 +616,16 @@
          write(nu_diag,1000) ' albsnowv                  = ', albsnowv
          write(nu_diag,1000) ' albsnowi                  = ', albsnowi
          write(nu_diag,1000) ' ahmax                     = ', ahmax
+#if defined(AusCOM) || defined(ACCICE)
+         write(nu_diag,1005) ' snowpatch                 = ', snowpatch
+         write(nu_diag,1000) ' dT_mlt                    = ', dT_mlt
+         write(nu_diag,1000) ' dalb_mlt                  = ', dalb_mlt
+         write(nu_diag,1005) ' iceruf                    = ', iceruf
+         write(nu_diag,1005) ' awtvdr                    = ', awtvdr
+         write(nu_diag,1005) ' awtidr                    = ', awtidr
+         write(nu_diag,1005) ' awtvdf                    = ', awtvdf
+         write(nu_diag,1005) ' awtidf                    = ', awtidf
+#endif
          write(nu_diag,1010) ' heat_capacity             = ', & 
                                heat_capacity
          write(nu_diag,1030) ' conduct                   = ', conduct
@@ -562,6 +642,21 @@
          write(nu_diag,*)    ' Tfrzpt                    = ', trim(Tfrzpt)
          write(nu_diag,1010) ' update_ocn_f              = ', update_ocn_f
          write(nu_diag,1005) ' ustar_min                 = ', ustar_min
+#if defined(ACCICE)
+         write(nu_diag,*) ' rhoi                      = ', rhoi
+         write(nu_diag,*) ' rhos                      = ', rhos
+         write(nu_diag,1005) ' ice_ref_salinity          = ', ice_ref_salinity
+         write(nu_diag,1005) ' kice                      = ', kice
+         write(nu_diag,1005) ' kseaice                   = ', kseaice
+         write(nu_diag,1005) ' ksno                      = ', ksno
+#endif
+#if defined(AusCOM) || defined(ACCICE)
+         write(nu_diag,1005) ' Tocnfrz                   = ', Tocnfrz
+         write(nu_diag,1005) ' cosw                      = ', cosw
+         write(nu_diag,1005) ' sinw                      = ', sinw
+         write(nu_diag,1005) ' dragio                    = ', dragio
+         write(nu_diag,1005) ' chio                      = ', chio
+#endif
          if (trim(atm_data_type) /= 'default') then
             write(nu_diag,*) ' atm_data_dir              = ', &
                                trim(atm_data_dir)
@@ -986,7 +1081,11 @@
          do i = 1, nx_block
             if (tmask(i,j)) then
                ! place ice in high latitudes where ocean sfc is cold
+#ifdef AusCOM
+               if ( (sst (i,j) <= Tf(i,j)+c1) .and. &
+#else
                if ( (sst (i,j) <= Tf(i,j)+p2) .and. &
+#endif
                     (ULAT(i,j) < edge_init_sh/rad_to_deg .or. &
                      ULAT(i,j) > edge_init_nh/rad_to_deg) ) then
                   icells = icells + 1

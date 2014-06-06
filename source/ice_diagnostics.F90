@@ -127,6 +127,10 @@
       use ice_work, only: work1, work2
       use ice_therm_vertical, only: calc_Tsfc
 
+!#ifdef AusCOM
+!      use ice_shortwave, only: awtvdr, awtidr, awtvdf, awtidf
+!#endif
+
 #if (defined CCSM) || (defined SEQ_MCT)
       use ice_prescribed_mod, only : prescribed_ice
 #endif

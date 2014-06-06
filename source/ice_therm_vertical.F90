@@ -54,7 +54,12 @@
                          ! nilyr + 1 index is for bottom surface
 
       real (kind=dbl_kind) :: &
+#if defined(AusCOM) || defined(ACCICE)
+         ustar_min   , & ! minimum friction velocity for ice-ocean heat flux
+         chio            ! default 0.006 = unitless param for basal heat flx ala McPhee and Maykut
+#else
          ustar_min       ! minimum friction velocity for ice-ocean heat flux
+#endif
 
       real (kind=dbl_kind), parameter, private :: &
          ferrmax = 1.0e-3_dbl_kind    ! max allowed energy flux error (W m-2)
@@ -529,6 +534,7 @@
 !
 ! !USES:
 !
+!
 ! !INPUT/OUTPUT PARAMETERS:
 !
 !EOP
@@ -664,13 +670,15 @@
          xtmp          ! temporary variable
 
       ! Parameters for bottom melting
-
+#if defined(AusCOM) || defined(ACCICE)
+      real (kind=dbl_kind) :: &
+         cpchr 
+#else
       ! 0.006 = unitless param for basal heat flx ala McPhee and Maykut
 
       real (kind=dbl_kind), parameter :: &
          cpchr = -cp_ocn*rhow*0.006_dbl_kind
-
-
+#endif
       ! Parameters for lateral melting
 
       real (kind=dbl_kind), parameter :: &
@@ -680,7 +688,9 @@
                                       ! (m/s/deg^(-m2))
          m2 = 1.36_dbl_kind           ! constant from Maykut & Perovich
                                       ! (unitless)
-
+#if defined(AusCOM) || defined(ACCICE)
+      cpchr = -cp_ocn*rhow*chio
+#endif
       do j = 1, ny_block
       do i = 1, nx_block
          rside(i,j) = c0
@@ -1375,7 +1385,7 @@
 !EOP
 !
       integer (kind=int_kind), parameter :: &
-         nitermax = 50, & ! max number of iterations in temperature solver
+         nitermax = 100, & ! max number of iterations in temperature solver
          nmat = nslyr + nilyr + 1  ! matrix dimension
 
       real (kind=dbl_kind), parameter :: &
@@ -1415,11 +1425,14 @@
          dfsens_dT   , & ! deriv of fsens wrt Tsf (W m-2 deg-1)
          dflat_dT    , & ! deriv of flat wrt Tsf (W m-2 deg-1)
          dflwout_dT  , & ! deriv of flwout wrt Tsf (W m-2 deg-1)
-         dt_rhoi_hlyr    ! dt/(rhoi*hilyr)
+         dt_rhoi_hlyr, & ! dt/(rhoi*hilyr)
+         ferr            ! energy conservation error (W m-2)
 
       real (kind=dbl_kind), dimension (icells,nilyr) :: &
          Tin_init    , & ! Tin at beginning of time step
-         Tin_start       ! Tin at start of iteration
+         Tin_start   , & ! Tin at start of iteration
+         dTmat       , & ! Tin - matrix solution before limiting
+         dqmat           ! associated enthalpy difference
 
       real (kind=dbl_kind), dimension (icells,nslyr) :: &
          Tsn_init    , & ! Tsn at beginning of time step
@@ -1440,9 +1453,9 @@
       real (kind=dbl_kind) :: &
          ci          , & ! specific heat of sea ice (J kg-1 deg-1)
          avg_Tsf     , & ! = 1. if Tsf averaged w/Tsf_start, else = 0.
-         ferr        , & ! energy conservation error (W m-2)
          Iswabs_tmp  , & ! energy to melt through fraction frac of layer
          Sswabs_tmp  , & ! same for snow
+         dswabs      , & ! difference in swabs and swabs_tmp
          frac        , & ! fraction of layer that can be melted through
          dTemp           ! minimum temperature difference for absorption
 
@@ -1452,6 +1465,8 @@
       logical (kind=log_kind) :: &
          all_converged  ! = true when all cells have converged
 
+      logical (kind=log_kind) , dimension(icells,nilyr) :: &
+         reduce_kh      ! reduce conductivity when T exceeds Tmlt
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
@@ -1519,17 +1534,20 @@
       !-----------------------------------------------------------------
 !mclaren: Should there be an if calc_Tsfc statement here then?? 
 
-      frac = c1 - puny
-      dTemp = p01
+!puotila: two limits below can be adjusted per model
+!         here the converge criterion has been relaxed
+!         from what it was before May 2012
+      frac = 0.9
+      dTemp = 0.02_dbl_kind
       do k = 1, nilyr
          do ij = 1, icells
             i = indxi(ij)
             j = indxj(ij)
 
-            Iswabs_tmp = c0
+            Iswabs_tmp = c0  ! all Iswabs is moved into fswsfc
             if (Tin_init(ij,k) <= Tmlt(k) - dTemp) then
                if (l_brine) then
-                  ci = cp_ice - Lfresh / Tin_init(ij,k)
+                  ci = cp_ice - Lfresh * Tmlt(k) / (Tin_init(ij,k)**2)
                   Iswabs_tmp = min(Iswabs(i,j,k), &
                      frac*(Tmlt(k)-Tin_init(ij,k))*ci/dt_rhoi_hlyr(ij))
                else
@@ -1539,8 +1557,13 @@
                endif
             endif
 
-            fswsfc(i,j)   = fswsfc(i,j) + (Iswabs(i,j,k) - Iswabs_tmp)
-            fswint(i,j)   = fswint(i,j) - (Iswabs(i,j,k) - Iswabs_tmp)
+            if (Iswabs_tmp < puny) Iswabs_tmp = c0
+
+            dswabs = min(Iswabs(i,j,k) - Iswabs_tmp, fswint(i,j))
+
+            ! put sw in surface instead of ice interior
+            fswsfc(i,j)   = fswsfc(i,j) + dswabs
+            fswint(i,j)   = fswint(i,j) - dswabs
             Iswabs(i,j,k) = Iswabs_tmp
 
          enddo
@@ -1558,8 +1581,13 @@
                           -frac*Tsn_init(ij,k)/etas(ij,k))
                endif
 
-               fswsfc(i,j)   = fswsfc(i,j) + (Sswabs(i,j,k) - Sswabs_tmp)
-               fswint(i,j)   = fswint(i,j) - (Sswabs(i,j,k) - Sswabs_tmp)
+               ! put sw in surface instead of snow interior
+               if (Sswabs(i,j,k) < puny) Sswabs_tmp = c0
+
+               dswabs = min(Sswabs(i,j,k) - Sswabs_tmp, fswint(i,j))
+
+               fswsfc(i,j)   = fswsfc(i,j) + dswabs
+               fswint(i,j)   = fswint(i,j) - dswabs
                Sswabs(i,j,k) = Sswabs_tmp
 
             endif
@@ -1894,6 +1922,10 @@
             enddo               ! ij
          enddo                  ! nslyr
 
+         dTmat(:,:) = c0
+         dqmat(:,:) = c0
+         reduce_kh(:,:) = .false.
+
          do k = 1, nilyr
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
@@ -1905,7 +1937,20 @@
       ! Reload Tin from matrix solution
       !-----------------------------------------------------------------
                Tin(m,k) = Tmat(ij,k+1+nslyr)
-               if (l_brine) Tin(m,k) = min(Tin(m,k), Tmlt(k))
+               if (l_brine .and. Tin(m,k) > Tmlt(k) - puny) then
+                 dtMat(m,k) = Tin(m,k) - Tmlt(k)
+! echmod: return this energy to the ocean
+                 dqmat(m,k) = rhoi * dTmat(m,k) &
+                            * (cp_ice - Lfresh * Tmlt(k)/Tin(m,k)**2)
+! use this for the case that Tmlt changes by an amount
+! dTmlt=Tmltnew-Tmlt(k)
+!                            + rhoi * dTmlt &
+!                            * (cp_ocn - cp_ice + Lfresh/Tin(m,k))
+! set layer T to melting temperature
+                 Tin(m,k)       = Tmlt(k)
+! change conductivity locally
+                 reduce_kh(m,k) = .true.
+               endif
 
       !-----------------------------------------------------------------
       ! Condition 2b: check for oscillating Tin(1)
@@ -1938,10 +1983,16 @@
       !-----------------------------------------------------------------
       ! Compute qin and increment new energy.
       !-----------------------------------------------------------------
-               qin(m,k) = -rhoi * (cp_ice*(Tmlt(k)-Tin(m,k)) &
-                                   + Lfresh*(c1-Tmlt(k)/Tin(m,k)) &
-                                   - cp_ocn*Tmlt(k))
-               enew(ij) = enew(ij) + hilyr(m) * qin(m,k)
+               ! allow S=0 case
+               if (l_brine) then
+                 qin(m,k) = -rhoi * (cp_ice*(Tmlt(k)-Tin(m,k)) &
+                                     + Lfresh*(c1-Tmlt(k)/Tin(m,k)) &
+                                     - cp_ocn*Tmlt(k))
+               else
+                 qin(m,k) = -rhoi * (-cp_ice*Tin(m,k) + Lfresh) 
+               endif
+               ! conserve energy
+               enew(ij) = enew(ij) + hilyr(m) * (qin(m,k)-dqmat(m,k))
 
                Tin_start(m,k) = Tin(m,k) ! for next iteration
 
@@ -2001,14 +2052,24 @@
             fcondbot(m) = kh(m,1+nslyr+nilyr) * &
                            (Tin(m,nilyr)   - Tbot(i,j))
 
-            ferr = abs( (enew(ij)-einit(m))/dt &
-                 - (fcondtopn(i,j) - fcondbot(m) + fswint(i,j)) )
+            ferr(m) = abs( (enew(ij)-einit(m))/dt &
+                    - (fcondtopn(i,j) - fcondbot(m) + fswint(i,j)) )
 
             ! factor of 0.9 allows for roundoff errors later
-            if (ferr > 0.9_dbl_kind*ferrmax) then         ! condition (5)
+            if (ferr(m) > 0.9_dbl_kind*ferrmax) then         ! condition (5)
                converged(m) = .false.
                all_converged = .false.
-            endif
+
+               ! reduce conductivity for next iteration
+               do k = 1, nilyr
+                  if (reduce_kh(m,k) .and. dqmat(m,k) > c0) then
+                    frac = max(0.5*(c1-ferr(m)/abs(fcondtopn(i,j)-fcondbot(m))),p1)
+                    kh(m,k+nslyr+1) = kh(m,k+nslyr+1) * frac
+                    kh(m,k+nslyr)   = kh(m,k+nslyr+1) * frac
+                  endif
+               enddo
+
+            endif               ! ferr
 
          enddo                  ! ij
 
@@ -2050,7 +2111,7 @@
                                  fcondtopn(i,j), fcondbot(ij), fswint(i,j)
                write(nu_diag,*) 'fswsfc, fswthrun', &
                                  fswsfc(i,j), fswthrun(i,j)
-               write(nu_diag,*) 'Flux conservation error =', ferr
+               write(nu_diag,*) 'Flux conservation error =', ferr(ij)
                write(nu_diag,*) 'Initial snow temperatures:'
                write(nu_diag,*) (Tsn_init(ij,k),k=1,nslyr)
                write(nu_diag,*) 'Initial ice temperatures:'
@@ -3643,9 +3704,13 @@
 !
 !EOP
 !
+#if defined(ACCICE)
+      real (kind=dbl_kind) :: &
+         qbotmax ! max enthalpy of ice growing at bottom
+#else
       real (kind=dbl_kind), parameter :: &
          qbotmax = -p5*rhoi*Lfresh  ! max enthalpy of ice growing at bottom
-
+#endif
       integer (kind=int_kind) :: &
          i, j        , & ! horizontal indices
          ij          , & ! horizontal index, combines i and j loops
@@ -3687,7 +3752,9 @@
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
-
+#if defined(ACCICE)
+      qbotmax = -p5*rhoi*Lfresh  ! max enthalpy of ice growing at bottom
+#endif
       hsn_new (:) = c0
 
       do k = 1, nilyr
@@ -3785,10 +3852,15 @@
 
          ! enthalpy of new ice growing at bottom surface
          if (heat_capacity) then
-           qbot = -rhoi * (cp_ice * (Tmlt(nilyr+1)-Tbot(i,j)) &
-                         + Lfresh * (c1-Tmlt(nilyr+1)/Tbot(i,j)) &
-                         - cp_ocn * Tmlt(nilyr+1))
-           qbot = min (qbot, qbotmax)      ! in case Tbot is close to Tmlt
+           ! allow S=0 case
+           if (l_brine) then
+             qbot = -rhoi * (cp_ice * (Tmlt(nilyr+1)-Tbot(i,j)) &
+                          + Lfresh * (c1-Tmlt(nilyr+1)/Tbot(i,j)) &
+                          - cp_ocn * Tmlt(nilyr+1))
+             qbot = min (qbot, qbotmax)      ! in case Tbot is close to Tmlt
+           else
+             qbot = -rhoi * (cp_ice * Tbot(i,j) + Lfresh)
+           endif
          else   ! zero layer
            qbot = -rhoi * Lfresh
          endif
@@ -4504,7 +4576,10 @@
                - fsnow(i,j)*Lfresh) * dt
          ferr = abs(efinal(ij)-einit(ij)-einp) / dt
          if (ferr > ferrmax) then
+#ifndef ACCESS
+      !20091014: turn this call off!
             l_stop = .true.
+#endif
             istop = i
             jstop = j
 
