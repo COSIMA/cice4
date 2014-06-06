@@ -39,9 +39,13 @@ setenv OASIS3_MCT yes	  # oasis3-mct version
 ### Location and names of coupling libraries and inclusions
 if ( $AusCOM == 'yes' ) then
     # Location and names of coupling libraries
-    setenv CPLLIBDIR $SRCDIR/../coupler/Linux/lib
+    #setenv CPLLIBDIR $SRCDIR/../coupler/Linux/lib
+    #setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
+    #setenv CPLINCDIR $SRCDIR/../coupler/Linux/build/lib
+    #setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
+    setenv CPLLIBDIR $OASIS/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR $SRCDIR/../coupler/Linux/build/lib
+    setenv CPLINCDIR $OASIS/include
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
  
