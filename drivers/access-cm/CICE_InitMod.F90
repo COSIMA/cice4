@@ -266,18 +266,17 @@
 !      call put_restart_i2a('i2a.nc', 0)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!      if ( file_exist('CICE_restart/mice.nc') ) then
-      if ( file_exist(trim(inputdir)//'/mice.nc') ) then
-        !for continue runs, mice data MUST be available.
-!        call get_restart_mice('CICE_restart/mice.nc')
-        call get_restart_mice(trim(inputdir)//'/mice.nc')
-      else
-write(6,*)'*** CICE WARNING: No initial mice.nc data available here! **'
-write(6,*)'*** CICE WARNING: ALL mice variables will be set to ZERO! **'
-write(6,*)'*** CICE WARNING: This is allowed for the init run ONLY ! **' 
+      if (runtype == 'continue') then        
+          if ( file_exist(trim(inputdir)//'/mice.nc') ) then
+            ! for continue runs, mice data MUST be available.
+            call get_restart_mice(trim(inputdir)//'/mice.nc')
+          else
+            write(6,*) 'CICE ERROR: mice.nc not found at:', &
+                        trim(inputdir)//'/mice.nc'
+            call abort_ice ('Cannot find mice.nc in input dir.')
+          endif
       endif
       if (use_core_runoff) then
-!         call get_core_runoff('CICE_input/core_runoff_regrid.nc',&
          call get_core_runoff(trim(inputdir)//'/core_runoff_regrid.nc',&
                               'runoff',1)
       endif
