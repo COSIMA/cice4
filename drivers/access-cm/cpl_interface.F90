@@ -20,7 +20,7 @@
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
   use ice_domain       !, only : distrb_info
-  use ice_grid,        only : u2tgrid_vector, ANGLE, ANGLET, hm
+  use ice_grid,        only : u2tgrid_vector, ANGLE, ANGLET
   use ice_exit,        only : abort_ice
 
   !cpl stuff
@@ -777,9 +777,6 @@
       else
         call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
       endif 
-
-      ! Apply the land-sea mask. Apparently OASIS doesn't do this. 
-      vwork2d = vwork2d * hm(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
 
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
         write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
