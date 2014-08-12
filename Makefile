@@ -7,3 +7,6 @@ access-hom:
 	bld/build.sh nci access-om 1440x1080
 access-hcm:
 	bld/build.sh nci access-cm 1440x1080
+
+clean:
+	rm -rf build_*
