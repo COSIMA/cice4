@@ -84,7 +84,7 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
     logical :: found, dump
 
     found = .false.
-    dump = .false.
+    dump = .true.
 
     if (present(do_full_dump)) then 
         dump = do_full_dump
@@ -109,10 +109,10 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
     end if
 
     ! Write out some stats. 
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
-               start=(/ field_info(idx)%count /), count=(/ 1 /)))
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
-               start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
+    !          start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !all check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
+    !          start=(/ field_info(idx)%count /), count=(/ 1 /)))
     !mean = sum(field_data) / (size(field_data, 1) * size(field_data, 2))
     !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
     !           start=(/ field_info(idx)%count /), count=(/ 1 /)))
