@@ -40,6 +40,7 @@ setenv OASIS3_MCT yes	  # oasis3-mct version
 
 if ($unit_testing == 'unit_testing') then
     setenv UNIT_TESTING yes
+    setenv DEBUG yes
 endif
 
 ### Location and names of coupling libraries and inclusions
