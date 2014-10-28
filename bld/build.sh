@@ -53,7 +53,7 @@ endif
 setenv EXE cice_${driver}_${resolution}_${NTASK}p.exe
 
 ### Where this model is compiled
-setenv OBJDIR $SRCDIR/build_{$NTASK}p
+setenv OBJDIR $SRCDIR/build_${driver}_${resolution}_${NTASK}p
 if !(-d $OBJDIR) mkdir -p $OBJDIR
 
 # These variables are set in the appropriate bld/config
