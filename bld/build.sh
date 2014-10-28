@@ -2,18 +2,20 @@
 
 set echo on
 
-if ( $#argv != 3 ) then
+if ( $#argv < 3 ) then
   echo '*** Please issue the command like ***'
-  echo '     > ./comp_auscom_cice.sh <platform> <driver> <resolution>' 
+  echo '> ./comp_auscom_cice.sh <platform> <driver> <resolution> [<unit_testing>]'
   echo 'e.g. comp_auscom_cice.sh nci access-om 1440x1080'
-  echo '    platform: the machine to run on.'
-  echo '    driver: which driver to use.'
-  echo '    resolution: grid resolution longitude by latitude.'
+  echo 'platform: the machine to run on.'
+  echo 'driver: which driver to use.'
+  echo 'resolution: grid resolution longitude by latitude.'
+  echo 'unit_testing: whether or not this is a unit testing build.'
   exit
 else
   set platform = $1
   set driver = $2
   set resolution = $3
+  set unit_testing = $4
 endif
 
 # Location of this model
@@ -35,6 +37,10 @@ else
     setenv ACCESS   no       
 endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
+
+if ($unit_testing == 'unit_testing') then
+    setenv UNIT_TESTING yes
+endif
 
 ### Location and names of coupling libraries and inclusions
 if ( $AusCOM == 'yes' ) then

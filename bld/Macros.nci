@@ -73,6 +73,9 @@ ifeq ($(AusCOM), yes)
    SLIBS   := $(SLIBS) $(LIBAUSCOM_LIBS)
 endif
 
+ifeq ($(UNIT_TESTING), yes)
+   CPPDEFS := $(CPPDEFS) -DUNIT_TESTING
+endif
 ifeq ($(ACCESS), yes)
    CPPDEFS := $(CPPDEFS) -DACCESS
 endif
