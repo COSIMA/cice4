@@ -120,7 +120,6 @@
       integer (kind=int_kind) :: rtimestamp_ai, stimestamp_ai
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
                                 !receive and send timestamps (seconds)
-      logical :: need_i2o = .true.
 #endif
 
    !--------------------------------------------------------------------
@@ -177,19 +176,18 @@
         !together with the a2i fields (sent from um at the end of previous run) received 
         !above, the time0 i2o fields can be obtained here
 
-        !if (runtime0 == 0 .and. need_i2o) then
-        !  write(6,*)'*** CICE: initial run calls get_restart_i2o *** '
-        !  write(6,*)'*** CICE: time_sec = ', time_sec
-        !  write(il_out,*)' calling get_restart_i2o at time_sec = ',time_sec
-        !  call get_restart_i2o('i2o.nc')
-        !  need_i2o = .false.         
-        !else
-        !  write(6,*)'*** CICE: calling get_i2o_fields... '    
-        !  write(6,*)'*** CICE: time_sec = ', time_sec
-        !  write(6,*)'*** CICE: calling get_i2o_fields... '
-        !  write(il_out,*)' calling get_i2o_fields at time_sec = ',time_sec
-          call get_i2o_fields
-        !endif
+        if (time_sec == 0) then
+            write(6,*)'*** CICE: initial run calls get_restart_i2o *** '
+            write(6,*)'*** CICE: time_sec = ', time_sec
+            write(il_out,*)' calling get_restart_i2o at time_sec = ',time_sec
+            call get_restart_i2o('i2o.nc')
+        else
+            write(6,*)'*** CICE: calling get_i2o_fields... '    
+            write(6,*)'*** CICE: time_sec = ', time_sec
+            write(6,*)'*** CICE: calling get_i2o_fields... '
+            write(il_out,*)' calling get_i2o_fields at time_sec = ',time_sec
+            call get_i2o_fields
+        endif
 
         !shift stresses from T onto U grid before sending into ocn
         write(il_out,*)' calling t2ugrid_vector - u/v at time_sec = ', time_sec
