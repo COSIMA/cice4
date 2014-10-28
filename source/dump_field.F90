@@ -113,9 +113,9 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
                start=(/ field_info(idx)%count /), count=(/ 1 /)))
     call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
                start=(/ field_info(idx)%count /), count=(/ 1 /)))
-    mean = sum(field_data) / (size(field_data, 1) * size(field_data, 2))
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
-               start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !mean = sum(field_data) / (size(field_data, 1) * size(field_data, 2))
+    !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
+    !           start=(/ field_info(idx)%count /), count=(/ 1 /)))
 
     call check(nf90_sync(field_info(idx)%ncid))
 
