@@ -43,18 +43,18 @@ subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
     write(proc_str, '(I6.6)') proc_num
 
     ! Open a file, set up a meta-data needed to save the field. 
-    call check(nf90_create(field_name//'.'//proc_str//'.nc', NF90_CLOBBER, ncid))
+    call check(nf90_create(field_name//'.'//proc_str//'.nc', NF90_CLOBBER, ncid), ' create file for '//field_name)
     call check(nf90_def_dim(ncid, 't', NF90_UNLIMITED, t_dimid), ' define t dim for '//field_name)
     if (do_full_dump) then 
         call check(nf90_def_dim(ncid, 'x', nx, x_dimid), 'define x dim for '//field_name)
         call check(nf90_def_dim(ncid, 'y', ny, y_dimid), 'define y dim for'//field_name)
-        call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid))
+        call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid), ' define var for '//field_name)
         field_info(field_num)%varid = varid
     endif
-    call check(nf90_def_var(ncid, field_name//'_min', NF90_DOUBLE, (/ t_dimid /), min_varid))
-    call check(nf90_def_var(ncid, field_name//'_max', NF90_DOUBLE, (/ t_dimid /), max_varid))
-    call check(nf90_def_var(ncid, field_name//'_mean', NF90_DOUBLE, (/ t_dimid /), mean_varid))
-    call check(nf90_enddef(ncid))
+    call check(nf90_def_var(ncid, field_name//'_min', NF90_DOUBLE, (/ t_dimid /), min_varid), ' define min var for '//field_name)
+    call check(nf90_def_var(ncid, field_name//'_max', NF90_DOUBLE, (/ t_dimid /), max_varid), ' define max var for '//field_name)
+    call check(nf90_def_var(ncid, field_name//'_mean', NF90_DOUBLE, (/ t_dimid /), mean_varid), ' define mean var for '//field_name)
+    call check(nf90_enddef(ncid), ' enddef for '//field_name)
 
     field_info(field_num)%field_name = field_name
     field_info(field_num)%ncid = ncid 
@@ -105,19 +105,19 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
 
     ! Dump data
     if (dump) then 
-        call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%varid, field_data, start=start, count=data_size))
+        call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%varid, field_data, start=start, count=data_size), ' put var for '//field_name)
     end if
 
     ! Write out some stats. 
     !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
-    !          start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !          start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put max var for '//field_name)
     !all check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
-    !          start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !          start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put min var for '//field_name)
     !mean = sum(field_data) / (size(field_data, 1) * size(field_data, 2))
     !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
-    !           start=(/ field_info(idx)%count /), count=(/ 1 /)))
+    !           start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put mean var for '//field_name)
 
-    call check(nf90_sync(field_info(idx)%ncid))
+    call check(nf90_sync(field_info(idx)%ncid), ' sync file for '//field_name)
 
     field_info(idx)%count = field_info(idx)%count + 1 
 
