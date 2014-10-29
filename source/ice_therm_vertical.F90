@@ -843,9 +843,9 @@
 #if defined(UNIT_TESTING)
       call dump_field_2d('frzmlt_bottom_lateral.output.tbot', my_task, &
                          Tbot)
-      call dump_field_2d('frzmlt_bottom_lateral.input.fbot', my_task, &
+      call dump_field_2d('frzmlt_bottom_lateral.output.fbot', my_task, &
                          fbot)
-      call dump_field_2d('frzmlt_bottom_lateral.input.rside', my_task, &
+      call dump_field_2d('frzmlt_bottom_lateral.output.rside', my_task, &
                          rside)
 #endif
 

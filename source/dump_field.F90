@@ -44,16 +44,16 @@ subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
 
     ! Open a file, set up a meta-data needed to save the field. 
     call check(nf90_create(field_name//'.'//proc_str//'.nc', NF90_CLOBBER, ncid))
-    call check(nf90_def_dim(ncid, 't', NF90_UNLIMITED, t_dimid))
+    call check(nf90_def_dim(ncid, 't', NF90_UNLIMITED, t_dimid), ' define t dim for '//field_name)
     if (do_full_dump) then 
-        call check(nf90_def_dim(ncid, 'x', nx, x_dimid))
-        call check(nf90_def_dim(ncid, 'y', ny, y_dimid))
-        call check(nf90_def_var(ncid, field_name, NF90_REAL, (/ x_dimid, y_dimid, t_dimid /), varid))
+        call check(nf90_def_dim(ncid, 'x', nx, x_dimid), 'define x dim for '//field_name)
+        call check(nf90_def_dim(ncid, 'y', ny, y_dimid), 'define y dim for'//field_name)
+        call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid))
         field_info(field_num)%varid = varid
     endif
-    call check(nf90_def_var(ncid, field_name//'_min', NF90_REAL, (/ t_dimid /), min_varid))
-    call check(nf90_def_var(ncid, field_name//'_max', NF90_REAL, (/ t_dimid /), max_varid))
-    call check(nf90_def_var(ncid, field_name//'_mean', NF90_REAL, (/ t_dimid /), mean_varid))
+    call check(nf90_def_var(ncid, field_name//'_min', NF90_DOUBLE, (/ t_dimid /), min_varid))
+    call check(nf90_def_var(ncid, field_name//'_max', NF90_DOUBLE, (/ t_dimid /), max_varid))
+    call check(nf90_def_var(ncid, field_name//'_mean', NF90_DOUBLE, (/ t_dimid /), mean_varid))
     call check(nf90_enddef(ncid))
 
     field_info(field_num)%field_name = field_name
@@ -97,7 +97,7 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
 
     call get_index(field_name, idx, found)
     if (.not. found) then
-        stop 'save_field_mod::field_write'
+        stop 'dump_field_mod::field_write'
     end if
 
     data_size = (/ size(field_data, 1), size(field_data, 2), 1 /)
@@ -132,7 +132,7 @@ subroutine dump_field_close(field_name)
 
     call get_index(field_name, idx, found)
     if (.not. found) then
-        stop 'save_field_mod::field_close()'
+        stop 'dump_field_mod::field_close()'
     end if
 
     call check(nf90_close(field_info(idx)%ncid))
@@ -155,12 +155,20 @@ subroutine get_index(field_name, idx, found)
    
 end subroutine get_index
 
-subroutine check(status)
+subroutine check(status, msg)
     integer, intent ( in) :: status
-    
+    character(len=*), intent(in), optional :: msg
+
+    character(len=1024) :: error_msg
+
+    error_msg = 'dump_field_mod::check() '//trim(nf90_strerror(status))
+    if (present(msg)) then 
+        error_msg = error_msg//' at: '//msg
+    end if
+
     if(status /= nf90_noerr) then 
-        print *, trim(nf90_strerror(status))
-        stop 'save_field_mod::check()'
+        print *, error_msg
+        stop 'dump_field_mod::check()'
     end if
 end subroutine check  
 
@@ -180,5 +188,5 @@ end module
 
 !   call dump_field_close('sst')
 
-!nd program
+!end program
 
