@@ -182,10 +182,6 @@
             write(il_out,*)' calling get_restart_i2o at time_sec = ',time_sec
             call get_restart_i2o('i2o.nc')
         else
-            write(6,*)'*** CICE: calling get_i2o_fields... '    
-            write(6,*)'*** CICE: time_sec = ', time_sec
-            write(6,*)'*** CICE: calling get_i2o_fields... '
-            write(il_out,*)' calling get_i2o_fields at time_sec = ',time_sec
             call get_i2o_fields
         endif
 
