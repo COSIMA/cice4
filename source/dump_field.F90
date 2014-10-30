@@ -79,12 +79,12 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
     real, dimension(:,:), intent(in) :: field_data
     logical, intent(in), optional :: do_full_dump
 
-    real :: mean
+    real :: mean, divisor
     integer :: start(3), data_size(3), idx
     logical :: found, dump
 
     found = .false.
-    dump = .true.
+    dump = .false.
 
     if (present(do_full_dump)) then 
         dump = do_full_dump
@@ -109,13 +109,18 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
     end if
 
     ! Write out some stats. 
-    !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
-    !          start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put max var for '//field_name)
-    !all check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
-    !          start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put min var for '//field_name)
-    !mean = sum(field_data) / (size(field_data, 1) * size(field_data, 2))
-    !call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
-    !           start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put mean var for '//field_name)
+    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
+              start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put max var for '//field_name)
+    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
+              start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put min var for '//field_name)
+    divisor = size(field_data, 1) * size(field_data, 2)
+    if (divisor /= 0) then 
+        mean = sum(field_data) / divisor
+    else
+        mean = 0.0
+    endif
+    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
+               start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put mean var for '//field_name)
 
     call check(nf90_sync(field_info(idx)%ncid), ' sync file for '//field_name)
 
@@ -161,14 +166,14 @@ subroutine check(status, msg)
 
     character(len=1024) :: error_msg
 
-    error_msg = 'dump_field_mod::check() '//trim(nf90_strerror(status))
+    error_msg = 'dump_field_mod::check() '//nf90_strerror(status)
     if (present(msg)) then 
-        error_msg = error_msg//' at: '//msg
+        error_msg = trim(error_msg)//' at: '//msg
     end if
 
     if(status /= nf90_noerr) then 
         print *, error_msg
-        stop 'dump_field_mod::check()'
+        stop 'dump_field_mod::check() ice'
     end if
 end subroutine check  
 
