@@ -24,6 +24,12 @@
 !
       use ice_kinds_mod
       use ice_constants
+
+#if defined(UNIT_TESTING)
+      use dump_field, only: dump_field_2d, dump_field_close
+      use ice_communicate, only: my_task
+#endif
+
 !
 !EOP
 !
@@ -171,6 +177,11 @@
       !------------------------------------------------------------
       ! Define functions
       !------------------------------------------------------------
+
+#if defined(UNIT_TESTING)
+      dump_field_2d('atmo_boundary_layer.input.uatm', my_task, uatm)
+      dump_field_2d('atmo_boundary_layer.input.vatm', my_task, vatm)
+#endif
 
       psimhu(xd)  = log((c1+xd*(c2+xd))*(c1+xd*xd)/c8) &
                   - c2*atan(xd) + pih
