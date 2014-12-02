@@ -880,6 +880,29 @@
 
   enddo
 
+    ! Rotate the winds.
+    do iblk = 1, nblocks
+
+        this_block = get_block(blocks_ice(iblk),iblk)
+        ilo = this_block%ilo
+        ihi = this_block%ihi
+        jlo = this_block%jlo
+        jhi = this_block%jhi
+
+        do j = jlo, jhi
+            do i = ilo, ihi
+              tmpu = um_taux(i,j,iblk)   ! on geographical coord. (T cell)
+              tmpv = um_tauy(i,j,iblk)
+              ! converted onto model curvelear coord. (T cell)
+              um_taux(i,j,iblk) = tmpu*cos(ANGLET(i,j,iblk)) &
+                           + tmpv*sin(ANGLET(i,j,iblk))
+              um_tauy(i,j,iblk) = tmpv*cos(ANGLET(i,j,iblk)) &
+                           - tmpu*sin(ANGLET(i,j,iblk))
+            enddo
+        enddo
+    enddo
+
+    ! Update halos.
     call ice_HaloUpdate(um_thflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_pswflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_runoff, halo_info, field_loc_center, field_type_scalar)
@@ -888,41 +911,17 @@
     call ice_HaloUpdate(um_snow, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_evap, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_lhflx, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(um_tmlt, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_bmlt, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_taux, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_tauy, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_swflx, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_lwflx, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_shflx, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_press, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_co2, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(um_wnd, halo_info, field_loc_center, field_type_vector)
-
-  IF (rotate_winds) THEN   !rotate_winds=.t. means oasis does not do the vector rotation.
-
-  do iblk = 1, nblocks
-
-    this_block = get_block(blocks_ice(iblk),iblk)
-    ilo = this_block%ilo
-    ihi = this_block%ihi
-    jlo = this_block%jlo
-    jhi = this_block%jhi
-
-    do j = jlo, jhi
-    do i = ilo, ihi
-      tmpu = um_taux(i,j,iblk)   ! on geographical coord. (T cell)
-      tmpv = um_tauy(i,j,iblk)    
-      um_taux(i,j,iblk) = tmpu*cos(ANGLET(i,j,iblk)) &   ! converted onto model curvelear
-                   + tmpv*sin(ANGLET(i,j,iblk))          ! coord. (T cell)
-      um_tauy(i,j,iblk) = tmpv*cos(ANGLET(i,j,iblk)) &   ! 
-                   - tmpu*sin(ANGLET(i,j,iblk))
-    enddo
-    enddo
-
-  enddo
-
-  ENDIF  !rotate_winds
+    call ice_HaloUpdate(um_tmlt, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_bmlt, halo_info, field_loc_center, field_type_scalar)
+    ! Use field_type_scalar here because the winds have already been rotated.
+    call ice_HaloUpdate(um_taux, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_tauy, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_swflx, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_lwflx, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_shflx, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_press, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_co2, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_wnd, halo_info, field_loc_center, field_type_scalar)
 
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
@@ -1042,10 +1041,10 @@
 
   call ice_HaloUpdate(ocn_sst, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ocn_sss, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(ocn_ssu, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ocn_ssv, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ocn_sslx, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ocn_ssly, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ocn_ssu, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_ssv, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_sslx, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_ssly, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ocn_pfmice, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ocn_co2, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ocn_co2fx, halo_info, field_loc_center, field_type_scalar)
