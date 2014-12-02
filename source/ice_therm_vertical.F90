@@ -36,11 +36,6 @@
       use ice_constants
       use ice_fileunits, only: nu_diag
       use ice_age, only: tr_iage
-
-#if defined(UNIT_TESTING)
-      use dump_field, only: dump_field_2d, dump_field_close
-      use ice_communicate, only: my_task
-#endif
 !
 !EOP
 !
@@ -694,21 +689,6 @@
          m2 = 1.36_dbl_kind           ! constant from Maykut & Perovich
                                       ! (unitless)
 
-#if defined(UNIT_TESTING)
-      call dump_field_2d('frzmlt_bottom_lateral.input.aice', my_task, &
-                         aice, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.input.frzmlt', my_task, &
-                         frzmlt, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.input.sst', my_task, &
-                         sst, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.input.tf', my_task, &
-                         Tf, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.input.strocnxT', &
-                         my_task, strocnxT, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.input.strocnyT', &
-                         my_task, strocnyT, .true.)
-#endif
-
 #if defined(AusCOM) || defined(ACCICE)
       cpchr = -cp_ocn*rhow*chio
 #endif
@@ -840,15 +820,6 @@
 
       deallocate(etot)
       deallocate(fside)
-
-#if defined(UNIT_TESTING)
-      call dump_field_2d('frzmlt_bottom_lateral.output.tbot', my_task, &
-                         Tbot, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.output.fbot', my_task, &
-                         fbot, .true.)
-      call dump_field_2d('frzmlt_bottom_lateral.output.rside', my_task, &
-                         rside, .true.)
-#endif
 
       end subroutine frzmlt_bottom_lateral
 
@@ -3779,16 +3750,6 @@
       real (kind=dbl_kind), dimension (icells,nslyr) :: &
          dzs             ! snow layer thickness after growth/melting
 
-#if defined(UNIT_TESTING)
-      call dump_field_2d('thickness_changes.input.fbot', my_task, &
-                         fbot, .true.)
-      call dump_field_2d('thickness_changes.input.tbot', my_task, &
-                         Tbot, .true.)
-      call dump_field_2d('thickness_changes.input.meltb', my_task, &
-                         meltb, .true.)
-      call dump_field_2d('thickness_changes.input.qin', my_task, qin)
-#endif
-
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
@@ -4019,10 +3980,6 @@
 
          enddo                  ! ij
       enddo                     ! nilyr
-
-#if defined(UNIT_TESTING)
-      call dump_field_2d('thickness_changes.output.dzi', my_task, dzi)
-#endif
 
       do k = nslyr, 1, -1
 !DIR$ CONCURRENT !Cray
@@ -4263,11 +4220,6 @@
             efinal(ij) = efinal(ij) + hilyr(ij)*qin(ij,k)
          enddo                  ! ij
       enddo                     ! k
-
-#if defined(UNIT_TESTING)
-      call dump_field_2d('thickness_changes.output.meltb', my_task, &
-                         meltb, .true.)
-#endif
 
       end subroutine thickness_changes
 
