@@ -71,9 +71,10 @@
     !local domain work array, 4 coupling data passing 
 
     ! Gaussian kernel used to smooth out 'blocky' incoming fields from
-    ! atmosphere.
-    real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
+    ! atmosphere. Some temp arrays.
     real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel
+    real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
+    real(kind=dbl_kind), dimension(:,:), allocatable :: tmask_real
 
   contains
 
@@ -737,6 +738,15 @@
 
     ! Get gaussian kernel for smoothing.
     allocate (vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi))
+    allocate (tmask_real(nx_block-(2*nghost), ny_block-(2*nghost)));
+
+    ! Set up mask needed for smoothing. Convert from a logical to real mask.
+    where (tmask(1+nghost:nx_block-nghost, 1+nghost:ny_block-nghost,1))
+        tmask_real = 0.0
+    elsewhere
+        tmask_real = 1.0
+    endwhere
+
     call gaussian_kernel(4.0, g_kernel, 1.0)
 
   end subroutine init_cpl
@@ -824,13 +834,13 @@
                         field_loc_center, field_type_scalar)
     endif ! not ll_comparal
 
-    ! Now apply a conservative filter to smooth out the 'blockiness' of the
-    ! input.
-    call convolve(vwork2d, g_kernel, vwork2d_smoothed)
-
 #if (MXBLCKS != 1)
 #error The following code assumes that max_blocks == 1
 #endif
+
+    ! Now apply a conservative filter to smooth out the 'blockiness' of the
+    ! input.
+    call convolve(vwork2d, g_kernel, vwork2d_smoothed, tmask_real)
 
     !***Note following "select case" works only if cl_read(:) is defined at ALL ranks***!
     !-----------------------------------------------------------------------------------!
