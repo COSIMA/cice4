@@ -29,6 +29,13 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
+  ! Utilities
+#if defined(UNIT_TESTING)
+      use dump_field, only: dump_field_2d, dump_field_close
+      use ice_communicate, only: my_task
+#endif
+  use gaussian_filter, only: gaussian_kernel, convolve
+
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
@@ -62,6 +69,12 @@
   real(kind=dbl_kind), dimension(:), allocatable :: rla_bufsend
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
     !local domain work array, 4 coupling data passing 
+
+    ! Gaussian kernel used to smooth out 'blocky' incoming fields from
+    ! atmosphere.
+    real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
+    real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel
+
   contains
 
 !======================================================================
@@ -721,6 +734,11 @@
   allocate (gwork(nx_global,ny_global)); gwork(:,:) = 0
   allocate (sicemass(nx_block,ny_block,max_blocks)); sicemass(:,:,:) = 0.
   allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0. !l_ihi-l_ilo+1, l_jhi-l_jlo+1
+
+    ! Get gaussian kernel for smoothing.
+    allocate (vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi))
+    call gaussian_kernel(4.0, g_kernel, 1.0)
+
   end subroutine init_cpl
 
 !=======================================================================
@@ -806,6 +824,10 @@
                         field_loc_center, field_type_scalar)
     endif ! not ll_comparal
 
+    ! Now apply a conservative filter to smooth out the 'blockiness' of the
+    ! input.
+    call convolve(vwork2d, g_kernel, vwork2d_smoothed)
+
 #if (MXBLCKS != 1)
 #error The following code assumes that max_blocks == 1
 #endif
@@ -814,61 +836,66 @@
     !-----------------------------------------------------------------------------------!
     select case (trim(cl_read(jf)))
         case ('thflx_i')
-            um_thflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_thflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('pswflx_i')
-            um_pswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_pswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('runoff_i')
-            um_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('wme_i')
-            um_wme(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_wme(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
     !    case ('rain_i');  um_rain(:,:,:) = vwork(:,:,:)
     !    case ('snow_i');  um_snow(:,:,:) = vwork(:,:,:)
     !---20100825 -- just be cauious: -------------------------
         case ('rain_i')
-            um_rain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d)
+            um_rain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
         case ('snow_i')
-            um_snow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d)
+            um_snow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
     !---------------------------------------------------------   
         case ('evap_i')
-            um_evap(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_evap(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('lhflx_i')
-            um_lhflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_lhflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('tmlt01_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d
+            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
         case ('tmlt02_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d
+            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
         case ('tmlt03_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d
+            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
         case ('tmlt04_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d
+            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
         case ('tmlt05_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d
+            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
         case ('bmlt01_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d
+            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
         case ('bmlt02_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d
+            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
         case ('bmlt03_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d
+            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
         case ('bmlt04_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d
+            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
         case ('bmlt05_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d
+            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
         case ('taux_i')
-            um_taux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_taux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('tauy_i')
-            um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('swflx_i')
-            um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+#if defined(UNIT_TESTING)
+            dump_field_2d('from_atm.input.swflx', my_task, vwork2d)
+            dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
+                          vwork2d_smoothed)
+#endif
+            um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('lwflx_i')
-            um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('shflx_i')
-            um_shflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_shflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('press_i')
-            um_press(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_press(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('co2_ai')
-            um_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('wnd_ai')
-            um_wnd(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+            um_wnd(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case default
             stop "Error: invalid case in subroutine from_ocn()"
     end select 
