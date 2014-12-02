@@ -881,9 +881,9 @@
             um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('swflx_i')
 #if defined(UNIT_TESTING)
-            dump_field_2d('from_atm.input.swflx', my_task, vwork2d)
-            dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
-                          vwork2d_smoothed)
+            call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
+            call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
+                               vwork2d_smoothed, .true.)
 #endif
             um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
         case ('lwflx_i')
