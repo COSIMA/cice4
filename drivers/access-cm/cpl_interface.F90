@@ -20,7 +20,7 @@
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
   use ice_domain       !, only : distrb_info
-  use ice_grid,        only : u2tgrid_vector, ANGLE, ANGLET
+  use ice_grid,        only : u2tgrid_vector, ANGLE, ANGLET, tmask_real
   use ice_exit,        only : abort_ice
 
   !cpl stuff
@@ -74,7 +74,6 @@
     ! atmosphere. Some temp arrays.
     real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel
     real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
-    real(kind=dbl_kind), dimension(:,:), allocatable :: tmask_real
 
   contains
 
@@ -197,7 +196,7 @@
   integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
   integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
 
-  integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
+  integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j,n
   type (block) ::  this_block           ! block information for current block
 
   integer, dimension(2) :: starts,sizes,subsizes
@@ -738,15 +737,6 @@
 
     ! Get gaussian kernel for smoothing.
     allocate (vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi))
-    allocate (tmask_real(nx_block-(2*nghost), ny_block-(2*nghost)));
-
-    ! Set up mask needed for smoothing. Convert from a logical to real mask.
-    where (tmask(1+nghost:nx_block-nghost, 1+nghost:ny_block-nghost,1))
-        tmask_real = 0.0
-    elsewhere
-        tmask_real = 1.0
-    endwhere
-
     call gaussian_kernel(4.0, g_kernel, 1.0)
 
   end subroutine init_cpl
@@ -835,12 +825,14 @@
     endif ! not ll_comparal
 
 #if (MXBLCKS != 1)
-#error The following code assumes that max_blocks == 1
+#error The code assumes that max_blocks == 1
 #endif
 
     ! Now apply a conservative filter to smooth out the 'blockiness' of the
     ! input.
-    call convolve(vwork2d, g_kernel, vwork2d_smoothed, tmask_real)
+    call convolve(vwork2d, g_kernel, vwork2d_smoothed, &
+                  tmask_real(1+nghost:nx_block-nghost, &
+                             1+nghost:ny_block-nghost, 1))
 
     !***Note following "select case" works only if cl_read(:) is defined at ALL ranks***!
     !-----------------------------------------------------------------------------------!
@@ -892,6 +884,9 @@
         case ('swflx_i')
 #if defined(UNIT_TESTING)
             call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
+            call dump_field_2d('from_atm.input.tmask_real', my_task, &
+                               tmask_real(1+nghost:nx_block-nghost,  &
+                               1+nghost:ny_block-nghost, 1))
             call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
                                vwork2d_smoothed, .true.)
 #endif

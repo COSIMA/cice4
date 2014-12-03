@@ -122,6 +122,10 @@
          lmask_n, & ! northern hemisphere mask
          lmask_s    ! southern hemisphere mask
 
+      ! land/boundary mask, thickness (T-cell), uses real kind.
+      real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks), save :: &
+        tmask_real
+
       ! grid dimensions for rectangular grid
       real (kind=dbl_kind), parameter ::  &
          dxrect = 30.e5_dbl_kind   ,&! uniform HTN (cm)
@@ -1354,8 +1358,10 @@
          do j = 1, ny_block
          do i = 1, nx_block
             tmask(i,j,iblk) = .false.
+            tmask_real(i,j,iblk) = 0.0
             umask(i,j,iblk) = .false.
             if ( hm(i,j,iblk) > p5) tmask(i,j,iblk) = .true.
+            if ( hm(i,j,iblk) > p5) tmask_real(i,j,iblk) = 1.0
             if (uvm(i,j,iblk) > p5) umask(i,j,iblk) = .true.
          enddo
          enddo
