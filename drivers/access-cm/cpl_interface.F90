@@ -1,4 +1,8 @@
 
+#if (MXBLCKS != 1)
+#error The code assumes that max_blocks == 1
+#endif
+
 !============================================================================
   module cpl_interface
 !============================================================================
@@ -180,6 +184,7 @@
     ll_comparal = .TRUE.          ! multi-cpl coupling!
   else
     ll_comparal = .FALSE.          !mono-cpl coupling!
+    call abort_ice('CICE: only parallel coupling is supported.')
   endif
 
   print *, '* CICE: prism_init called OK!'  
@@ -742,175 +747,139 @@
   end subroutine init_cpl
 
 !=======================================================================
-  subroutine from_atm(isteps)
-!----------------------------!
+subroutine from_atm(isteps)
 
-  implicit none
+    implicit none
 
-  integer(kind=int_kind), intent(in) :: isteps
+    integer(kind=int_kind), intent(in) :: isteps
 
-  real(kind=dbl_kind) :: tmpu, tmpv
-  integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j
-  type (block) :: this_block           ! block information for current block
+    real(kind=dbl_kind) :: tmpu, tmpv
+    integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j
+    type (block) :: this_block           ! block information for current block
 
-  integer(kind=int_kind) :: jf
-  integer(kind=int_kind) :: ncid,currstep,ll,ilout
-  
-  data currstep/0/
-  save currstep
+    integer(kind=int_kind) :: jf
+    integer(kind=int_kind) :: ncid,currstep,ll,ilout
 
-  currstep=currstep+1
+    data currstep/0/
+    save currstep
 
-  if (my_task == 0) then  
-    write(il_out,*)
-    write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
-    if (chk_a2i_fields) then
-      if ( .not. file_exist('fields_a2i_in_ice.nc') ) then
-        call create_ncfile('fields_a2i_in_ice.nc',ncid,il_im,il_jm,ll=1,ilout=il_out)
-      endif
-      write(il_out,*) 'opening file fields_a2i_in_ice.nc at nstep = ', isteps
-      call ncheck( nf_open('fields_a2i_in_ice.nc',nf_write,ncid) )
-      call write_nc_1Dtime(real(isteps),currstep,'time',ncid)
-    endif
-    write(il_out,*)
-    write(il_out,*) '(from_atm) Total number of fields to be rcvd: ', nrecv_a2i
-  endif
-  
-  write(il_out,*) "prism_get from_atm at sec: ", isteps
-  do jf = 1, nrecv_a2i
+    currstep=currstep+1
 
-    if (my_task==0 .or. ll_comparal ) then
-
-      !jf-th field in
-      write(il_out,*)
-      write(il_out,*) '*** receiving coupling field No. ', jf, cl_read(jf)
-      !call flush(il_out)
-
-      if (ll_comparal) then 
-        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-        !call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
-        !             0,MPI_COMM_ICE,ierror)
-        !call broadcast_array(gwork, 0)
-!         gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
-      else
-        call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
-      endif 
-
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
-        write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
-        call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1') 
-      else 
+    if (my_task == 0) then
         write(il_out,*)
-        write(il_out,*)'(from_atm) rcvd at time with err: ',cl_read(jf),isteps,ierror
-     
+        write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
+        if (chk_a2i_fields) then
+            if ( .not. file_exist('fields_a2i_in_ice.nc') ) then
+                call create_ncfile('fields_a2i_in_ice.nc',ncid,il_im,il_jm,ll=1,ilout=il_out)
+            endif
+            write(il_out,*) 'opening file fields_a2i_in_ice.nc at nstep = ', isteps
+            call ncheck( nf_open('fields_a2i_in_ice.nc',nf_write,ncid) )
+            call write_nc_1Dtime(real(isteps),currstep,'time',ncid)
+        endif
+        write(il_out,*)
+        write(il_out,*) '(from_atm) Total number of fields to be rcvd: ', nrecv_a2i
+    endif
+
+    write(il_out,*) "prism_get from_atm at sec: ", isteps
+    do jf = 1, nrecv_a2i
+
+        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
+
+        if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
+            write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
+            call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1') 
+        endif
+
+        ! Now apply a conservative filter to smooth out the 'blockiness' of the
+        ! input.
+        call convolve(vwork2d, g_kernel, vwork2d_smoothed, &
+                      tmask_real(1+nghost:nx_block-nghost, &
+                                 1+nghost:ny_block-nghost, 1))
+
         if (ll_comparal .and. chk_a2i_fields) then
-           call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork, &
-                     counts,disps, resizedrecvsubarray, 0,MPI_COMM_ICE,ierror)
+           call mpi_gatherv(vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi), 1, &
+                            sendsubarray,gwork, counts,disps, &
+                            resizedrecvsubarray, 0,MPI_COMM_ICE,ierror)
            call MPI_Barrier(MPI_COMM_ICE, ierror)
         endif
+
         if (my_task==0 .and. chk_a2i_fields) then
             call write_nc2D(ncid, trim(cl_read(jf)), gwork, 1, il_im,il_jm, &
                           currstep,ilout=il_out)
         endif
-      endif
 
-    endif
-
-    if (.not. ll_comparal ) then
-      call scatter_global(vwork,gwork,master_task,distrb_info, &
+        ! Is this necessary.
+        call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
                         field_loc_center, field_type_scalar)
-    else
-      call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
-                        field_loc_center, field_type_scalar)
-    endif ! not ll_comparal
 
-#if (MXBLCKS != 1)
-#error The code assumes that max_blocks == 1
-#endif
+        !***Note following "select case" works only if cl_read(:) is defined at ALL ranks***!
+        select case (trim(cl_read(jf)))
+            case ('thflx_i')
+                um_thflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('pswflx_i')
+                um_pswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('runoff_i')
+                um_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('wme_i')
+                um_wme(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            ! FIXME: should not use max() here. Instead abort if value is negative.
+            case ('rain_i')
+                um_rain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
+            case ('snow_i')
+                um_snow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
+            case ('evap_i')
+                um_evap(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('lhflx_i')
+                um_lhflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('tmlt01_i')
+                um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
+            case ('tmlt02_i')
+                um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
+            case ('tmlt03_i')
+                um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
+            case ('tmlt04_i')
+                um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
+            case ('tmlt05_i')
+                um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
+            case ('bmlt01_i')
+                um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
+            case ('bmlt02_i')
+                um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
+            case ('bmlt03_i')
+                um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
+            case ('bmlt04_i')
+                um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
+            case ('bmlt05_i')
+                um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
+            case ('taux_i')
+                um_taux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('tauy_i')
+                um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('swflx_i')
+        #if defined(UNIT_TESTING)
+                call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
+                call dump_field_2d('from_atm.input.tmask_real', my_task, &
+                                   tmask_real(1+nghost:nx_block-nghost,  &
+                                   1+nghost:ny_block-nghost, 1))
+                call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
+                                   vwork2d_smoothed, .true.)
+        #endif
+                um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('lwflx_i')
+                um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('shflx_i')
+                um_shflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('press_i')
+                um_press(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('co2_ai')
+                um_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case ('wnd_ai')
+                um_wnd(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            case default
+                stop "Error: invalid case in subroutine from_ocn()"
+        end select 
 
-    ! Now apply a conservative filter to smooth out the 'blockiness' of the
-    ! input.
-    call convolve(vwork2d, g_kernel, vwork2d_smoothed, &
-                  tmask_real(1+nghost:nx_block-nghost, &
-                             1+nghost:ny_block-nghost, 1))
-
-    !***Note following "select case" works only if cl_read(:) is defined at ALL ranks***!
-    !-----------------------------------------------------------------------------------!
-    select case (trim(cl_read(jf)))
-        case ('thflx_i')
-            um_thflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('pswflx_i')
-            um_pswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('runoff_i')
-            um_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('wme_i')
-            um_wme(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-    !    case ('rain_i');  um_rain(:,:,:) = vwork(:,:,:)
-    !    case ('snow_i');  um_snow(:,:,:) = vwork(:,:,:)
-    !---20100825 -- just be cauious: -------------------------
-        case ('rain_i')
-            um_rain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
-        case ('snow_i')
-            um_snow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = max(0.0, vwork2d_smoothed)
-    !---------------------------------------------------------   
-        case ('evap_i')
-            um_evap(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('lhflx_i')
-            um_lhflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('tmlt01_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
-        case ('tmlt02_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
-        case ('tmlt03_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
-        case ('tmlt04_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
-        case ('tmlt05_i')
-            um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
-        case ('bmlt01_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d_smoothed
-        case ('bmlt02_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d_smoothed
-        case ('bmlt03_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d_smoothed
-        case ('bmlt04_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d_smoothed
-        case ('bmlt05_i')
-            um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d_smoothed
-        case ('taux_i')
-            um_taux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('tauy_i')
-            um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('swflx_i')
-#if defined(UNIT_TESTING)
-            call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
-            call dump_field_2d('from_atm.input.tmask_real', my_task, &
-                               tmask_real(1+nghost:nx_block-nghost,  &
-                               1+nghost:ny_block-nghost, 1))
-            call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
-                               vwork2d_smoothed, .true.)
-#endif
-            um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('lwflx_i')
-            um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('shflx_i')
-            um_shflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('press_i')
-            um_press(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('co2_ai')
-            um_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case ('wnd_ai')
-            um_wnd(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
-        case default
-            stop "Error: invalid case in subroutine from_ocn()"
-    end select 
-
-    if (my_task == 0 .or. ll_comparal) then
-      write(il_out,*) 
-      write(il_out,*)'(from_atm) done: ', jf, trim(cl_read(jf))
-    endif
-
-  enddo
+    enddo
 
     ! Rotate the winds.
     do iblk = 1, nblocks
@@ -945,9 +914,8 @@
     call ice_HaloUpdate(um_lhflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_tmlt, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_bmlt, halo_info, field_loc_center, field_type_scalar)
-    ! Use field_type_scalar here because the winds have already been rotated.
-    call ice_HaloUpdate(um_taux, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(um_tauy, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_taux, halo_info, field_loc_center, field_type_vector)
+    call ice_HaloUpdate(um_tauy, halo_info, field_loc_center, field_type_vector)
     call ice_HaloUpdate(um_swflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_lwflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_shflx, halo_info, field_loc_center, field_type_scalar)
@@ -955,23 +923,11 @@
     call ice_HaloUpdate(um_co2, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_wnd, halo_info, field_loc_center, field_type_scalar)
 
-  ! need do t-grid to u-grid shift for vectors since all coupling occur on
-  ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
-  ! (see comment in code ice_flux.F)
-  !call t2ugrid(uwnd1)
-  !call t2ugrid(vwnd1)
+    if ( chk_a2i_fields .and. my_task == 0 ) then
+        call ncheck(nf_close(ncid))
+    endif
 
-  !-------------------------------
-  !if ( chk_a2i_fields ) then
-  !  call check_a2i_fields(isteps)
-  !endif
-  !-------------------------------
-
-  if ( chk_a2i_fields .and. my_task == 0 ) then
-    call ncheck(nf_close(ncid))
-  endif
-
-  end subroutine from_atm
+end subroutine from_atm
 
 !=======================================================================
   subroutine from_ocn(isteps)
