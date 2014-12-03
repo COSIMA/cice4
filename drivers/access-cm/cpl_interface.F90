@@ -856,14 +856,14 @@ subroutine from_atm(isteps)
             case ('tauy_i')
                 um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
             case ('swflx_i')
-        #if defined(UNIT_TESTING)
+#if defined(UNIT_TESTING)
                 call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
                 call dump_field_2d('from_atm.input.tmask_real', my_task, &
                                    tmask_real(1+nghost:nx_block-nghost,  &
                                    1+nghost:ny_block-nghost, 1))
                 call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
                                    vwork2d_smoothed, .true.)
-        #endif
+#endif
                 um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
             case ('lwflx_i')
                 um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
