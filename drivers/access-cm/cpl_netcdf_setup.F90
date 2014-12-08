@@ -20,7 +20,7 @@ implicit none
     character(len=*), intent(in), optional :: error_str
 
     if (status /= nf_noerr) then
-      write(*,'(/a)')   'error - from NetCDF library'
+      write(*,'(/a)')   'CICE: error - from NetCDF library'
       if (present(error_str)) then
           write(*,'(a)')   error_str
       endif
