@@ -528,13 +528,13 @@
 
   enddo
 
-  ! Now update the halos for each. FIXME: better to do this later, when they're actually needed.  
+  ! Now update the halos for each. FIXME: better to do this later, when they're actually needed.
   call ice_HaloUpdate(ssto, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ssso, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ssuo, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(ssvo, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
 
   if (chk_o2i_fields .and. mod(isteps, chk_fields_period) == 0) then
