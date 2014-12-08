@@ -881,6 +881,11 @@ subroutine from_atm(isteps)
 
     enddo
 
+#if defined(UNIT_TESTING)
+    call dump_field_2d('rotate_winds.input.um_taux', my_task, um_taux(:,:,1), .true.)
+    call dump_field_2d('rotate_winds.input.um_tauy', my_task, um_tauy(:,:,1), .true.)
+#endif
+
     ! Rotate the winds.
     do iblk = 1, nblocks
 
@@ -903,6 +908,11 @@ subroutine from_atm(isteps)
         enddo
     enddo
 
+#if defined(UNIT_TESTING)
+    call dump_field_2d('rotate_winds.output.um_taux', my_task, um_taux(:,:,1), .true.)
+    call dump_field_2d('rotate_winds.output.um_tauy', my_task, um_tauy(:,:,1), .true.)
+#endif
+
     ! Update halos.
     call ice_HaloUpdate(um_thflx, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_pswflx, halo_info, field_loc_center, field_type_scalar)
@@ -922,6 +932,12 @@ subroutine from_atm(isteps)
     call ice_HaloUpdate(um_press, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_co2, halo_info, field_loc_center, field_type_scalar)
     call ice_HaloUpdate(um_wnd, halo_info, field_loc_center, field_type_scalar)
+
+#if defined(UNIT_TESTING)
+    call dump_field_2d('ice_haloupdate.output.um_taux', my_task, um_taux(:,:,1), .true.)
+    call dump_field_2d('ice_haloupdate.output.um_tauy', my_task, um_tauy(:,:,1), .true.)
+#endif
+
 
     if ( chk_a2i_fields .and. my_task == 0 ) then
         call ncheck(nf_close(ncid))
