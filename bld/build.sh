@@ -21,7 +21,7 @@ endif
 # Location of this model
 setenv SRCDIR $cwd
 setenv CBLD   $SRCDIR/bld
-                                                                                
+
 source $CBLD/config.$platform.$resolution
 
 ### Specialty code
@@ -30,11 +30,11 @@ setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
 setenv NETCDF   yes       # set to no if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
-setenv AusCOM   yes       
+setenv AusCOM   yes
 if ($driver == 'access-cm') then
-    setenv ACCESS   yes       
+    setenv ACCESS   yes
 else
-    setenv ACCESS   no       
+    setenv ACCESS   no
 endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
 
@@ -43,19 +43,13 @@ if ($unit_testing == 'unit_testing') then
     setenv DEBUG yes
 endif
 
-### Location and names of coupling libraries and inclusions
 if ( $AusCOM == 'yes' ) then
-    # Location and names of coupling libraries
-    #setenv CPLLIBDIR $SRCDIR/../coupler/Linux/lib
-    #setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    #setenv CPLINCDIR $SRCDIR/../coupler/Linux/build/lib
-    #setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
-    setenv CPLLIBDIR $OASIS/lib
+    setenv CPLLIBDIR $OASIS_ROOT/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR $OASIS/include
+    setenv CPLINCDIR $OASIS_ROOT/include
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
- 
+
 ### Location and name of the generated exectuable
 setenv EXE cice_${driver}_${resolution}_${NTASK}p.exe
 
@@ -67,7 +61,7 @@ if !(-d $OBJDIR) mkdir -p $OBJDIR
 @ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK
 @ m = $a / $b ; setenv MXBLCKS $m ; if ($MXBLCKS == 0) setenv MXBLCKS 1
 echo Autimatically generated: MXBLCKS = $MXBLCKS
-                                                                                
+
 cp -f $CBLD/Makefile.std $CBLD/Makefile
 
 if ($NTASK == 1) then
@@ -76,17 +70,17 @@ else
    setenv COMMDIR mpi
 endif
 echo COMMDIR: $COMMDIR
-                                                                                
+
 set N_ILYR = 4
 setenv DRVDIR $driver
-                                                                                
+
 if ($driver == 'access-cm') then
   # For "Zero-Layer" ice configuration (ACCESS version)
   set N_ILYR = 1
 endif
-                                                                                
+
 cd $OBJDIR
-                                                                                
+
 ### List of source code directories (in order of importance).
 cat >! Filepath << EOF
 $SRCDIR/drivers/$DRVDIR
@@ -94,7 +88,7 @@ $SRCDIR/source
 $SRCDIR/$COMMDIR
 $SRCDIR/$SHRDIR
 EOF
-                                                                                
+
 cc -o makdep $CBLD/makdep.c || exit 2
 
 make VPFILE=Filepath EXEC=$EXE \
@@ -102,7 +96,7 @@ make VPFILE=Filepath EXEC=$EXE \
            N_ILYR=$N_ILYR \
            BLCKX=$BLCKX BLCKY=$BLCKY MXBLCKS=$MXBLCKS \
       -j 8 -f  $CBLD/Makefile MACFILE=$CBLD/Macros.$platform || exit 2
-                                                                                
+
 cd ..
 pwd
 echo NTASK = $NTASK
