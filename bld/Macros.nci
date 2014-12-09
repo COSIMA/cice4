@@ -5,43 +5,33 @@
 #==============================================================================
 
 INCLDIR    := -I.
-SLIBS      := 
-ULIBS      := 
+SLIBS      :=
+ULIBS      :=
 CPP        := cpp
 
 CPPFLAGS   := -P -traditional
 CPPDEFS    := -DLINUX -DPAROPT
 ifeq ($(VTRACE), yes)
-    FC := mpif90-vt
+    FC := mpifort-vt
 else
-    FC := mpif90
-endif    
+    FC := mpifort
+endif
 CFLAGS     := -c -O2
 FIXEDFLAGS := -132
-FREEFLAGS  := 
-
-#Russ:
-#FFLAGS     := -g -heap-arrays 5120 -convert big_endian -r8 -O0 -check bounds -check pointers -check uninit -diag-file=diag.out -ftrapuv
-#FFLAGS     := -g -heap-arrays 5120 -convert big_endian -r8 -i4 -check -ftrapuv -assume byterecl -fpe0 -CB
-#FFLAGS     := -v -g -convert big_endian -r8 -i4 -check -ftrapuv -assume byterecl -gen-interfaces
+FREEFLAGS  :=
 
 ifeq ($(DEBUG), yes)
     FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -no-vec -assume buffered_io -check noarg_temp_created
 else
-    FFLAGS     := -r8 -i4 -O3 -align all -g -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+    FFLAGS     := -r8 -i4 -O3 -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
 endif
-#FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -mp -g
-#FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -fpe0 -CB -g
-#FFLAGS     := -r8 -i4 -align all -w -ftz -convert big_endian -assume byterecl -fpe0 -CB -g
+
 MOD_SUFFIX := mod
 LD         := $(FC)
 LDFLAGS    := $(FFLAGS) -v -static-intel
-#LDFLAGS    := -Wl.stack,64m -g 
 
     CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
                 -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
-#   CPPDEFS :=  $(CPPDEFS) -DAOMIP
-#   CPPDEFS :=  $(CPPDEFS)  -DAOMIP
 
 ifeq ($(COMMDIR), mpi)
    SLIBS   :=  $(SLIBS) -lmpi
