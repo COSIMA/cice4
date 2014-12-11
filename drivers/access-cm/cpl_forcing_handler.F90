@@ -664,6 +664,72 @@ if (my_task == 0) call ncheck( nf_close(ncid) )
 return
 end subroutine save_restart_o2i
 
+! Save the last i2o forcing data, to be read in at the beginning of next run by
+! cice and sent to the ocean.
+subroutine save_restart_i2o(fname, nstep)
+
+    implicit none
+
+    character(len=*), intent(in) :: fname
+    integer(kind=int_kind), intent(in) :: nstep
+    integer(kind=int_kind) :: ncid
+    integer(kind=int_kind) :: jf, ll, ilout
+
+    if (my_task == 0) then
+      call create_ncfile(fname, ncid, nx_global, ny_global, ll=1, ilout=il_out)
+    endif
+
+    do jf = nsend_i2a + 1, jpfldout   !2:13
+        select case(trim(cl_writ(jf)))
+          case('strsu_io')
+            vwork = io_strsu
+          case('strsv_io')
+            vwork = io_strsv
+          case('rain_io')
+            vwork = io_rain
+          case('snow_io')
+            vwork = io_snow
+          case('stflx_io')
+            vwork = io_stflx
+          case('htflx_io')
+            vwork = io_htflx
+          case('swflx_io')
+            vwork = io_swflx
+          case('qflux_io')
+            vwork = io_qflux
+          case('shflx_io')
+            vwork = io_shflx
+          case('lwflx_io')
+            vwork = io_lwflx
+          case('runof_io')
+            vwork = io_runof
+          case('press_io')
+            vwork = io_press
+          case('aice_io')
+            vwork = io_aice
+          case('form_io')
+            vwork = io_form
+          case('melt_io')
+            vwork = io_melt
+          case('co2_i1')
+            vwork = io_co2
+          case('wnd_i1')
+            vwork = io_wnd
+        end select
+
+        call gather_global(gwork, vwork, master_task, distrb_info)
+        if (my_task == 0) then
+            call write_nc2D(ncid, trim(cl_writ(jf)), gwork, 2, nx_global, ny_global, &
+                            1, ilout=il_out)
+        endif
+    enddo
+
+    if (my_task == 0) then
+        call ncheck(nf_close(ncid))
+    endif
+
+end subroutine save_restart_i2o
+
 !==============================================================================
 subroutine save_restart_i2asum(fname, nstep)
 ! output the last i2a forcing data in cice at the end of the run,

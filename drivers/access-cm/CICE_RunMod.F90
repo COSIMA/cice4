@@ -326,12 +326,9 @@
       ! final update of the stimestamp_io, ie., put back the last dt_cice:
       stimestamp_io = stimestamp_io + dt
 
-      ! *** need save o2i fields here instead of in mom4 ***
-      !call save_restart_o2i('o2i.nc', stimestamp_io) !it is done in mom4
-
-      ! *** need save the last IO cpl int (time-averaged) ice variables used to get i2o fields ***
-      ! *** 				at the beginning of next run			       ***
-      call save_restart_mice('mice.nc',stimestamp_io) 
+      ! Save some restarts.
+      call save_restart_i2o('i2o.nc', stimestamp_io)
+      call save_restart_mice('mice.nc', stimestamp_io) 
 
 #else
 
