@@ -21,7 +21,7 @@ FIXEDFLAGS := -132
 FREEFLAGS  :=
 
 ifeq ($(DEBUG), yes)
-    FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -no-vec -assume buffered_io -check noarg_temp_created
+    FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -no-vec -assume buffered_io -check noarg_temp_created
 else
     FFLAGS     := -r8 -i4 -O3 -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
 endif
