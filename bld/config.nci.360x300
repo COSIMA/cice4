@@ -1,7 +1,6 @@
 
 setenv NTASK 6
 setenv RES 360x300
-
 set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
 
@@ -14,4 +13,8 @@ module load intel-fc/14.3.174
 module load intel-cc/14.3.174
 module load netcdf/4.3.2
 module load oasis/dev
-module load openmpi/1.8.2
+if ( $?DEBUG ) then
+    module load openmpi/1.8.4-debug
+else
+    module load openmpi/1.8.2
+endif

@@ -22,6 +22,11 @@ endif
 setenv SRCDIR $cwd
 setenv CBLD   $SRCDIR/bld
 
+if ($unit_testing == 'unit_testing') then
+    setenv UNIT_TESTING yes
+    setenv DEBUG yes
+endif
+
 source $CBLD/config.$platform.$resolution
 
 ### Specialty code
@@ -37,11 +42,6 @@ else
     setenv ACCESS   no
 endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
-
-if ($unit_testing == 'unit_testing') then
-    setenv UNIT_TESTING yes
-    setenv DEBUG yes
-endif
 
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $OASIS_ROOT/lib
