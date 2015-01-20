@@ -85,7 +85,7 @@
   subroutine prism_init
 !-----------------------!
 
-  include 'mpif.h'
+  use mpi
 
   !-----------------------------------
   ! 'define' the model global domain: 
