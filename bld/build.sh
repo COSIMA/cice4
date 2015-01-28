@@ -30,7 +30,7 @@ if ($debug == 'unit_testing') then
     setenv UNIT_TESTING yes
 endif
 
-source $CBLD/config.$platform.$resolution
+source $CBLD/config.$platform.$driver.$resolution
 
 ### Specialty code
 setenv USE_ESMF no        # set to yes for ESMF runs

@@ -12,9 +12,9 @@ CPP        := cpp
 CPPFLAGS   := -P -traditional
 CPPDEFS    := -DLINUX -DPAROPT
 ifeq ($(VTRACE), yes)
-    FC := mpifort-vt
+    FC := mpif90-vt
 else
-    FC := mpifort
+    FC := mpif90
 endif
 CFLAGS     := -c -O2
 FIXEDFLAGS := -132
