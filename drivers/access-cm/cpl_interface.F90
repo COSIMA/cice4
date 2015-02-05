@@ -1557,7 +1557,7 @@ end subroutine from_atm
 
 ! !USES:
 
-   include 'mpif.h'
+   use mpi
 
 ! !INPUT PARAMETERS:
 
@@ -1815,7 +1815,7 @@ end subroutine from_atm
 
 ! !USES:
 
-   include 'mpif.h'
+   use mpi
 
 ! !INPUT PARAMETERS:
 

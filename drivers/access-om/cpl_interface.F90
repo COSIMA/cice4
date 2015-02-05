@@ -75,7 +75,7 @@
   subroutine prism_init
 !-----------------------!
 
-  include 'mpif.h'
+  use mpi
 
   integer(kind=int_kind) :: io_size, ii, integer_byte_size, integer_io_size
   integer(kind=int_kind) :: il_real, il_bufsizebyt
@@ -178,8 +178,7 @@
 !=======================================================================
   subroutine init_cpl
 
-  !use mpi
-  include 'mpif.h'
+  use mpi
 !--------------------!
 
   integer(kind=int_kind) :: jf
