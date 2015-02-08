@@ -67,6 +67,9 @@
     ! Gaussian kernel used to smooth out 'blocky' incoming fields from
     ! atmosphere. Some temp arrays.
     real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel
+    ! A more aggressive kernel is used for the wind fields because we don't have
+    ! to worry about conservation.
+    real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel_wind
     real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
 
   contains
@@ -426,6 +429,9 @@
     ! Get gaussian kernel for smoothing.
     allocate (vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi))
     call gaussian_kernel(4.0, g_kernel, 1.0)
+    ! Use a more aggressive kernel for the wind fields, we don't need to worry
+    ! about conservation.
+    call gaussian_kernel(5.0, g_kernel_wind, 2.0)
 
   end subroutine init_cpl
 
@@ -485,8 +491,14 @@
         case (8)
             qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
         case (9)
+            call convolve(vwork2d, g_kernel_wind, vwork2d_smoothed,
+                          tmask_real(1+nghost:nx_block-nghost, &
+                                     1+nghost:ny_block-nghost, 1))
             uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
         case (10)
+            call convolve(vwork2d, g_kernel_wind, vwork2d_smoothed,
+                          tmask_real(1+nghost:nx_block-nghost, &
+                                     1+nghost:ny_block-nghost, 1))
             vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
         case default
             stop "Error: invalid case in subroutine from_atm()"
