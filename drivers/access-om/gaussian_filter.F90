@@ -97,16 +97,16 @@ subroutine convolve(input, weights, output, mask)
 
     real, intent(in), dimension(:,:) :: input, weights
     ! The mask is 0 on masked points and 1 on non-masked. All masked points are
-    ! left unchanged. 
+    ! left unchanged.
     real, intent(in), dimension(:,:), optional :: mask
     real, intent(inout), dimension(:,:) :: output
 
-    ! These are allocated within tile_and_reflect, we rely on automatic
-    ! deallocation at the end of the subroutine. 
+    ! These are allocated within tile_and_reflect, rely on automatic
+    ! deallocation at the end of the subroutine.
     real, dimension(:, :), allocatable, target :: tiled_input
     real, dimension(:, :), allocatable, target :: tiled_mask
     real, dimension(:, :), pointer :: overlapping, overlapping_mask
-    
+
     integer :: rows, cols, hw_row, hw_col, i, j, tj, ti
     real :: clobber_total, correction
 
@@ -129,20 +129,20 @@ subroutine convolve(input, weights, output, mask)
         call assert(all(shape(mask) - shape(input) == 0), &
                     'Mask and input shapes do not match')
         call tile_and_reflect(mask, tiled_mask)
-    endif 
+    endif
 
     ! This ensures that in the masked case, all masked points remain unchanged.
     output(:,:) = input(:,:)
     call tile_and_reflect(input, tiled_input)
 
-    ! Very similar Python code can be found in gaussian_filter.py. 
+    ! Very similar Python code can be found in gaussian_filter.py.
     do j = 1, cols
         do i = 1, rows
             ! Use i, j to offset into equivalent part of the tiled arrays.
             ti = i + rows
             tj = j + cols
 
-            ! Skip masked points. 
+            ! Skip masked points.
             if (present(mask)) then
                 if (tiled_mask(ti, tj) == 0) then
                     cycle
@@ -156,7 +156,7 @@ subroutine convolve(input, weights, output, mask)
                 ! The approach taken here is to find out which parts of the
                 ! weights matrix are masked, add up the value of all these and
                 ! destribute them evenly over the rest of the matrix. The
-                ! intention is to conserve the field. 
+                ! intention is to conserve the field.
                 overlapping_mask => tiled_mask(ti - hw_row:ti + hw_row, &
                                                tj - hw_col:tj + hw_col)
 
@@ -164,7 +164,7 @@ subroutine convolve(input, weights, output, mask)
                 clobber_total = sum((1 - overlapping_mask) * weights)
                 correction = clobber_total / sum(overlapping_mask)
 
-                ! Add correction and calculate. 
+                ! Add correction and calculate.
                 output(i, j) = sum((weights(:, :) + correction) * overlapping &
                                    * overlapping_mask)
             else
