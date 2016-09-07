@@ -47,9 +47,9 @@ endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
 
 if ( $AusCOM == 'yes' ) then
-    setenv CPLLIBDIR $OASIS_ROOT/lib
+    setenv CPLLIBDIR $OASIS_ROOT/Linux/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR $OASIS_ROOT/include
+    setenv CPLINCDIR $OASIS_ROOT/Linux/build/lib/
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
 

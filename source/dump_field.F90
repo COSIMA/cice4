@@ -48,7 +48,8 @@ subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
     if (do_full_dump) then 
         call check(nf90_def_dim(ncid, 'x', nx, x_dimid), 'define x dim for '//field_name)
         call check(nf90_def_dim(ncid, 'y', ny, y_dimid), 'define y dim for'//field_name)
-        call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid), ' define var for '//field_name)
+        call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid), &
+                   ' define var for '//field_name)
         field_info(field_num)%varid = varid
     endif
     call check(nf90_def_var(ncid, field_name//'_min', NF90_DOUBLE, (/ t_dimid /), min_varid), ' define min var for '//field_name)
@@ -105,7 +106,8 @@ subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
 
     ! Dump data
     if (dump) then 
-        call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%varid, field_data, start=start, count=data_size), ' put var for '//field_name)
+        call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%varid, field_data, start=start, count=data_size), &
+                   ' put var for '//field_name)
     end if
 
     ! Write out some stats. 

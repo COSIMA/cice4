@@ -88,7 +88,8 @@ subroutine write_nc_1Dtime(vin, nt, vname, ncid)
       call ncheck(nf_def_var(ncid,trim(vname),nf_real, 1, timeDimId, varid), 'Defining: '//trim(vname)//' in write_nc_1Dtime()')
       write(ctimeatt, &
           '("seconds since ",I4.4,"-",I2.2,"-",I2.2," ",I2.2,":",I2.2,":",I2.2)') adate(:)
-      call ncheck(nf_put_att_text(ncid,varid,"units",len_trim(ctimeatt),trim(ctimeatt)), 'Adding attribute units to '//trim(vname)//' in write_nc_1Dtime()')
+      call ncheck(nf_put_att_text(ncid,varid,"units",len_trim(ctimeatt),trim(ctimeatt)), &
+                  'Adding attribute units to '//trim(vname)//' in write_nc_1Dtime()')
       call ncheck(nf_enddef(ncid))
     end if
 
@@ -138,9 +139,11 @@ subroutine write_nc2D(ncid, vname, vin, prcn, nx, ny, istep, ilout)
     select case(prcn)
       case (1)
         vtmp = real(vin) !dbl precision to single precision
-        call ncheck(nf_put_vara_real(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vtmp), 'Writing real values to'//trim(vname)//' in write_nc2D')
+        call ncheck(nf_put_vara_real(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vtmp), &
+                    'Writing real values to'//trim(vname)//' in write_nc2D')
       case default    !case (2)
-        call ncheck(nf_put_vara_double(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vin), 'Writing double values to'//trim(vname)//' in write_nc2D')
+        call ncheck(nf_put_vara_double(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vin), &
+                    'Writing double values to'//trim(vname)//' in write_nc2D')
     end select
 
     return
