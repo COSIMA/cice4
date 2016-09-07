@@ -4,8 +4,8 @@ set echo on
 
 if ( $#argv < 3 ) then
   echo '*** Please issue the command like ***'
-  echo '> ./comp_auscom_cice.sh <platform> <driver> <resolution> [<debug>]'
-  echo 'e.g. comp_auscom_cice.sh nci access-om 1440x1080'
+  echo '> ./build.sh <platform> <driver> <resolution> [<debug>]'
+  echo 'e.g. build.sh nci access-om 1440x1080'
   echo 'platform: the machine to run on.'
   echo 'driver: which driver to use.'
   echo 'resolution: grid resolution longitude by latitude.'
