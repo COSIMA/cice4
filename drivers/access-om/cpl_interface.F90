@@ -190,14 +190,15 @@
 
   integer, dimension(2) :: starts,sizes,subsizes
   integer(kind=mpi_address_kind) :: start, extent
-  integer (int_kind),dimension(:), allocatable :: vilo, vjlo
+  integer (kind=int_kind),dimension(:), allocatable :: vilo, vjlo
   real(kind=dbl_kind) :: realvalue
-  integer (int_kind) :: nprocs
+  integer (kind=int_kind) :: nprocs
 
 !-------------------------------------------------------------------------
 
   integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
   type (block) ::  this_block           ! block information for current block
+  integer (kind=int_kind),dimension(1) :: send_buf
 
 !calculate partition using nprocsX and nprocsX
   write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
@@ -213,9 +214,11 @@
   allocate(vilo(nprocs))
   allocate(vjlo(nprocs))
 
-  call mpi_gather(l_ilo, 1, mpi_integer, vilo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
+  send_buf(1) = l_ilo
+
+  call mpi_gather(send_buf, 1, mpi_integer, vilo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
   call broadcast_array(vilo, 0)
-  call mpi_gather(l_jlo, 1, mpi_integer, vjlo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
+  call mpi_gather(send_buf, 1, mpi_integer, vjlo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
   call broadcast_array(vjlo, 0)
 
 !create subarray of this rank
