@@ -1,0 +1,18 @@
+
+setenv RES gx3
+setenv GRID 100x116
+
+set NXGLOB = `echo $GRID | sed s/x.\*//`
+set NYGLOB = `echo $GRID | sed s/.\*x//`
+
+setenv NTASK      4       # total number of processors
+setenv BLCKX     25       # x-dimension of blocks ( not including )
+setenv BLCKY     29       # y-dimension of blocks (  ghost cells  )
+
+source /etc/profile.d/nf_csh_modules
+module purge
+module load intel-fc/14.3.174
+module load intel-cc/14.3.174
+module load netcdf/4.3.2
+module load openmpi/1.10.2
+

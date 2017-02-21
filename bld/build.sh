@@ -38,13 +38,17 @@ setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
 setenv NETCDF   yes       # set to no if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
-setenv AusCOM   yes
-if ($driver == 'access-cm') then
+
+set drivertype = `echo $driver | awk '{print substr($0,0,6)}'` 
+echo "Driver type " $drivertype
+if ($drivertype == 'access') then
     setenv ACCESS   yes
+    setenv OASIS3_MCT yes
+    setenv AusCOM   yes
 else
+    setenv AusCOM   no
     setenv ACCESS   no
 endif
-setenv OASIS3_MCT yes	  # oasis3-mct version
 
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $OASIS_ROOT/Linux/lib
