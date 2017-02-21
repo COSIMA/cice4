@@ -20,4 +20,4 @@ module purge
 module load intel-fc/14.3.174
 module load intel-cc/14.3.174
 module load netcdf/4.3.2
-module load openmpi/1.8.4
+module load openmpi/1.10.2
