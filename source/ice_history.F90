@@ -468,19 +468,10 @@
          else
             nml_error =  1
          endif
-         do while (nml_error > 0)
-            read(nu_nml, nml=icefields_nml,iostat=nml_error)
-            if (nml_error > 0) read(nu_nml,*)  ! for Nagware compiler
-         end do
-         if (nml_error == 0) close(nu_nml)
+         read(nu_nml, nml=icefields_nml)
+         close(nu_nml)
       endif
       call release_fileunit(nu_nml)
-
-      call broadcast_scalar(nml_error, master_task)
-      if (nml_error /= 0) then
-         close (nu_nml)
-         call abort_ice('ice: error reading icefields_nml')
-      endif
 
       ! histfreq options ('1','h','d','m','y')
       nstreams = 0

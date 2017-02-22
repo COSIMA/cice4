@@ -105,6 +105,7 @@
          new_day        , & ! new day = .true.
          new_hour       , & ! new hour = .true.
          write_ic       , & ! write initial condition now
+         dump_last      , & ! write restart file on last time step
          write_history(max_nstrm) ! write history now
 
       character (len=1) :: &
@@ -303,6 +304,7 @@
       !write(il_out,*) '(calendar)  idate = ', idate
 #endif
       if (istep >= npt+1)  stop_now = 1
+      if (istep == npt .and. dump_last) write_restart = 1 ! last timestep
       if (nyr   /= nyrp)   new_year = .true.
       if (month /= monthp) new_month = .true.
       if (mday  /= mdayp)  new_day = .true.
