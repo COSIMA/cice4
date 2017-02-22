@@ -451,7 +451,6 @@
       integer (kind=int_kind) :: hfreqn
       integer (kind=int_kind), dimension(max_nstrm) :: &
          ntmp
-      integer (kind=int_kind) :: nml_error ! namelist i/o error flag
 
       character (len=3) :: nchar
       character (len=40) :: stmp
@@ -462,12 +461,7 @@
 
       call get_fileunit(nu_nml)
       if (my_task == master_task) then
-         open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
-         if (nml_error /= 0) then
-            nml_error = -1
-         else
-            nml_error =  1
-         endif
+         open (nu_nml, file=nml_filename, status='old')
          read(nu_nml, nml=icefields_nml)
          close(nu_nml)
       endif

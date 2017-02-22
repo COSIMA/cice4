@@ -108,14 +108,6 @@
 !
 !EOP
 !BOC
-!----------------------------------------------------------------------
-!
-!  local variables
-!
-!----------------------------------------------------------------------
-
-   integer (int_kind) :: &
-      nml_error          ! namelist read error flag
 
 !----------------------------------------------------------------------
 !
@@ -145,24 +137,11 @@
 
    call get_fileunit(nu_nml)
    if (my_task == master_task) then
-      open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
-      if (nml_error /= 0) then
-         nml_error = -1
-      else
-         nml_error =  1
-      endif
-      do while (nml_error > 0)
-         read(nu_nml, nml=domain_nml,iostat=nml_error)
-	 if (nml_error > 0) read(nu_nml,*)  ! for Nagware compiler
-      end do
-      if (nml_error == 0) close(nu_nml)
+      open (nu_nml, file=nml_filename, status='old')
+      read(nu_nml, nml=domain_nml)
+      close(nu_nml)
    endif
    call release_fileunit(nu_nml)
-
-   call broadcast_scalar(nml_error, master_task)
-   if (nml_error /= 0) then
-      call abort_ice('ice: error reading domain_nml')
-   endif
 
    call broadcast_scalar(nprocs,            master_task)
    call broadcast_scalar(processor_shape,   master_task)
