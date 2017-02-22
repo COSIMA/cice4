@@ -1,4 +1,5 @@
-
+example:
+	bld/build.sh nci cice4 25x29
 access-om:
 	bld/build.sh nci access-om 360x300
 access-cm:

@@ -69,7 +69,8 @@
       use ice_fileunits
       use ice_calendar, only: year_init, istep0, histfreq, histfreq_n, &
                               dumpfreq, dumpfreq_n, diagfreq, nstreams, &
-                              npt, dt, ndyn_dt, days_per_year, write_ic
+                              npt, dt, ndyn_dt, days_per_year, write_ic, &
+                              dump_last
       use ice_restart, only: &
           restart, restart_dir, restart_file, pointer_file, &
           runid, runtype
@@ -129,7 +130,7 @@
         npt,            ndyn_dt,                                        &
         runtype,        runid,                                          &
         ice_ic,         restart,        restart_dir,     restart_file,  &
-        pointer_file,   dumpfreq,       dumpfreq_n,                     &
+        pointer_file,   dumpfreq,       dumpfreq_n,      dump_last,     &
         diagfreq,       diag_type,      diag_file,                      &
         print_global,   print_points,   latpnt,          lonpnt,        &
         dbug,           histfreq,       histfreq_n,      hist_avg,      &
@@ -199,6 +200,7 @@
       incond_file = 'iceh_ic'! file prefix
       dumpfreq='y'           ! restart frequency option
       dumpfreq_n = 1         ! restart frequency
+      dump_last = .false.    ! write restart on last time step
       restart = .false.      ! if true, read restart files for initialization
       restart_dir  = ' '     ! write to executable dir for default
       restart_file = 'iced'  ! restart file name prefix
@@ -317,24 +319,25 @@
          else
             nml_error =  1
          endif
-         do while (nml_error > 0)
-            print*,'Reading setup_nml'
-            read(nu_nml, nml=setup_nml,iostat=nml_error)
-            print*,'Reading grid_nml'
-            read(nu_nml, nml=grid_nml,iostat=nml_error)
-            print*,'Reading tracer_nml'
-            read(nu_nml, nml=tracer_nml,iostat=nml_error)
-            print*,'Reading ice_nml'
-            read(nu_nml, nml=ice_nml,iostat=nml_error)
-            if (nml_error > 0) read(nu_nml,*)  ! for Nagware compiler
-         end do
-         if (nml_error == 0) close(nu_nml)
-      endif
-      call broadcast_scalar(nml_error, master_task)
-      if (nml_error /= 0) then
-         call abort_ice('ice: error reading namelist')
-      endif
 
+         print *,'Reading grid_nml'
+         read(nu_nml, nml=grid_nml)
+         rewind(nu_nml)
+
+         print *,'Reading setup_nml'
+         read(nu_nml, nml=setup_nml)
+         rewind(nu_nml)
+
+         print *,'Reading tracer_nml'
+         read(nu_nml, nml=tracer_nml)
+         rewind(nu_nml)
+
+         print *,'Reading ice_nml'
+         read(nu_nml, nml=ice_nml)
+         rewind(nu_nml)
+
+         close(nu_nml)
+      endif
       call release_fileunit(nu_nml)
 
       !-----------------------------------------------------------------
@@ -436,6 +439,7 @@
       call broadcast_scalar(incond_file,        master_task)
       call broadcast_scalar(dumpfreq,           master_task)
       call broadcast_scalar(dumpfreq_n,         master_task)
+      call broadcast_scalar(dump_last,          master_task)
       call broadcast_scalar(restart_file,       master_task)
       call broadcast_scalar(restart,            master_task)
       call broadcast_scalar(restart_dir,        master_task)
@@ -567,6 +571,7 @@
          write(nu_diag,1030) ' dumpfreq                  = ', &
                                trim(dumpfreq)
          write(nu_diag,1020) ' dumpfreq_n                = ', dumpfreq_n
+         write(nu_diag,1010) ' dump_last                 = ', dump_last
          write(nu_diag,1010) ' restart                   = ', restart
          write(nu_diag,*)    ' restart_dir               = ', &
                                trim(restart_dir)
