@@ -73,7 +73,6 @@ logical :: neutral        = .false.
 integer :: stable_option  = 1
 real    :: zeta_trans     = 0.5
 
-integer :: nml_error
 !!
 !!bi003
 namelist /monin_obukhov_nml/ rich_crit, neutral, drag_min, &
@@ -108,26 +107,13 @@ integer :: unit, ierr, io
 !!      endif
 
 call get_fileunit(nu_nml)
-open(unit=nu_nml,file="input_ice_monin.nml",form="formatted",status="old",iostat=nml_error)
+open(unit=nu_nml,file="input_ice_monin.nml",form="formatted",status="old")
 !
 write(6,*)'CICE: input_ice_monin.nml opened at unit = ', nu_nml
 !
-if (nml_error /= 0) then
-   nml_error = -1
-else
-   nml_error =  1
-endif
-do while (nml_error > 0)
-   read(nu_nml, nml=monin_obukhov_nml,iostat=nml_error)
-   if (nml_error > 0) read(nu_nml,*)  ! for Nagware compiler
-end do
-if (nml_error == 0) close(nu_nml)
+read(nu_nml, nml=monin_obukhov_nml)
+close(nu_nml)
 call release_fileunit(nu_nml)
-
-if (nml_error /= 0) then
-   call abort_ice('ice: error reading coupling_nml')
-endif
-
 
 !---------- output namelist to log-------------------------------------
 

@@ -760,8 +760,6 @@ use ice_exit, only : abort_ice
 
 implicit none
 
-integer (int_kind) :: nml_error       ! namelist read error flag
-
 ! ---- local vars ----------------------------------------------------------
 !!  integer :: unit, ierr, io
 
@@ -786,26 +784,14 @@ integer (int_kind) :: nml_error       ! namelist read error flag
 !  close(unit=109)
 
 call get_fileunit(nu_nml)
-open(unit=nu_nml,file="input_ice_gfdl.nml",form="formatted",status="old",iostat=nml_error)
+open(unit=nu_nml,file="input_ice_gfdl.nml",form="formatted",status="old")
 !
 write(6,*)'CICE: input_ice_gfdl.nml opened at unit = ', nu_nml
 !
-if (nml_error /= 0) then
-   nml_error = -1
-else
-   nml_error =  1
-endif
-do while (nml_error > 0)
-   read(nu_nml, nml=surface_flux_nml,iostat=nml_error)
-   if (nml_error > 0) read(nu_nml,*)  ! for Nagware compiler
-end do
-if (nml_error == 0) close(nu_nml)
+read(nu_nml, nml=surface_flux_nml)
+close(nu_nml)
 call release_fileunit(nu_nml)
 
-if (nml_error /= 0) then
-   call abort_ice('ice: error reading urface_flux_nml')
-endif
-  
 if(.not. use_virtual_temp) d608 = 0.0
   
 do_init = .false.

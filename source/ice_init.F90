@@ -114,7 +114,6 @@
 !EOP
 !
       integer (kind=int_kind) :: &
-        nml_error, & ! namelist i/o error flag
         n            ! loop index
 
       character (len=6) :: chartmp
@@ -313,12 +312,7 @@
       call get_fileunit(nu_nml)
 
       if (my_task == master_task) then
-         open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
-         if (nml_error /= 0) then
-            nml_error = -1
-         else
-            nml_error =  1
-         endif
+         open (nu_nml, file=nml_filename, status='old')
 
          print *,'Reading grid_nml'
          read(nu_nml, nml=grid_nml)
