@@ -47,6 +47,7 @@ logical :: &                         !pop_icediag is as that for ocn model, if t
    use_core_iaf_runoff = .false. , &      !.t. use core Inter-Annual Forcing runoff data (remapped) 20120302
    cst_ocn_albedo = .true.  , &      !.t. use constant ocean albedo (e.g., 0.06, to 0.1)
    chk_frzmlt_sst = .false. , &      !      otherwise use alfa = 0.069 - 0.011 cos(2phi)
+   smooth_forcing = .false. , &      !      smooth coupling fields when large mismatch between atm & ocn
    chk_a2i_fields = .false. , &      !      as in Large & Yeager (2009).
    chk_i2a_fields = .false. , &
    chk_i2o_fields = .false. , &
@@ -99,6 +100,7 @@ namelist/coupling_nml/       &
          chk_frzmlt_sst, &
          use_core_nyf_runoff, &
          use_core_iaf_runoff, &
+         smooth_forcing, &
          chk_a2i_fields, &
          chk_i2a_fields, &
          chk_i2o_fields, &
