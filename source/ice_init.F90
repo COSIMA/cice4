@@ -73,7 +73,7 @@
                               dump_last
       use ice_restart, only: &
           restart, restart_dir, restart_file, pointer_file, &
-          runid, runtype
+          runid, runtype, use_restart_time
       use ice_history, only: hist_avg, &
                              history_format, history_dir, history_file, &
                              incond_dir, incond_file
@@ -130,7 +130,7 @@
         runtype,        runid,                                          &
         ice_ic,         restart,        restart_dir,     restart_file,  &
         pointer_file,   dumpfreq,       dumpfreq_n,      dump_last,     &
-        diagfreq,       diag_type,      diag_file,                      &
+        diagfreq,       diag_type,      diag_file,    use_restart_time, &
         print_global,   print_points,   latpnt,          lonpnt,        &
         dbug,           histfreq,       histfreq_n,      hist_avg,      &
         history_dir,    history_file,   history_format,                 &
@@ -202,6 +202,7 @@
       dump_last = .false.    ! write restart on last time step
       restart = .false.      ! if true, read restart files for initialization
       restart_dir  = ' '     ! write to executable dir for default
+      use_restart_time = .true.     ! if true, use time info written in file
       restart_file = 'iced'  ! restart file name prefix
       pointer_file = 'ice.restart_file'
       ice_ic       = 'default'      ! latitude and sst-dependent
@@ -437,6 +438,7 @@
       call broadcast_scalar(restart_file,       master_task)
       call broadcast_scalar(restart,            master_task)
       call broadcast_scalar(restart_dir,        master_task)
+      call broadcast_scalar(use_restart_time,   master_task)
       call broadcast_scalar(pointer_file,       master_task)
       call broadcast_scalar(ice_ic,             master_task)
       call broadcast_scalar(grid_format,        master_task)
@@ -573,6 +575,8 @@
                                trim(restart_file)
          write(nu_diag,*)    ' pointer_file              = ', &
                                trim(pointer_file)
+         write(nu_diag,*)    ' use_restart_time          = ', &
+                               use_restart_time
          write(nu_diag,*   ) ' ice_ic                    = ', &
                                trim(ice_ic)
          write(nu_diag,*)    ' grid_type                 = ', &

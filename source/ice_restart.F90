@@ -42,7 +42,8 @@
       save
 
       logical (kind=log_kind) :: &
-         restart ! if true, initialize using restart file instead of defaults
+         restart       , & ! if true, initialize using restart file instead of defaults
+         use_restart_time  ! if true, use time written in core restart file
 
       character (len=char_len) :: &
          restart_file  , & ! output file for restart dump
@@ -294,7 +295,11 @@
 !EOP
 !
       integer (kind=int_kind) :: &
-         i, j, k, n, it, iblk ! counting indices
+         i, j, k, n, it, iblk, &   ! counting indices
+         iignore                   ! dummy variable
+
+      real (kind=real_kind) :: &
+         rignore                 ! dummy variable
 
       character(len=char_len_long) :: &
          filename, filename0
@@ -319,23 +324,27 @@
 
       call ice_open(nu_restart,filename,0)
 
-      if (my_task == master_task) then
-         write(nu_diag,*) 'Using restart dump=', trim(filename)
-         read (nu_restart) istep0,time,time_forc
-         write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
-      endif
+      if (my_task == master_task) &
+           write(nu_diag,*) 'Using restart dump=', trim(filename)
+
+      if (use_restart_time) then
+         if (my_task == master_task) then
+            read (nu_restart) istep0,time,time_forc
+            write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
+         endif
+         call broadcast_scalar(istep0,master_task)
+         istep1 = istep0
+         call broadcast_scalar(time,master_task)
+         call broadcast_scalar(time_forc,master_task)
 #ifndef AusCOM
-      call calendar(time)
+         call calendar(time)
 #else
-      call calendar(time-runtime0)
+         call calendar(time-runtime0)
 #endif
-
-      call broadcast_scalar(istep0,master_task)
-
-      istep1 = istep0
-
-      call broadcast_scalar(time,master_task)
-      call broadcast_scalar(time_forc,master_task)
+      else
+         if (my_task == master_task) &
+            read (nu_restart) iignore,rignore,rignore
+      endif
 
       diag = .true.     ! write min/max diagnostics for field
 
