@@ -1,13 +1,90 @@
 
-module dump_field
+!module mpi_comms
+!
+!use mpi
+!implicit none
+!
+!contains
+!
+!function root_pe()
+!    integer :: root_pe
+!
+!    root_pe = 0
+!
+!end function root_pe
+!
+!function my_pe()
+!    integer :: my_pe
+!    integer :: err
+!
+!    call MPI_comm_rank(MPI_COMM_WORLD, my_pe, err)
+!
+!end function my_pe
+!
+!subroutine gather(sendbuf, recvbuf, err)
+!    real, dimension(:, :), intent(in) :: sendbuf
+!    real, dimension(:, :), intent(out) :: recvbuf
+!    integer, intent(inout) :: err
+!
+!    call mpi_gather(sendbuf, size(sendbuf), MPI_DOUBLE, &
+!                    recvbuf, size(sendbuf), MPI_DOUBLE, &
+!                    0, MPI_COMM_WORLD, err)
+!
+!end subroutine gather
+!
+!end module mpi_comms
 
-! Dump a field. Subsequent calls with the same field name and proc will a new
-! time point to the same file. See the test program below for use. 
 
-use netcdf
+module cice_comms
+
+use ice_gather_scatter, only : gather_global
+use ice_domain, only : distrb_info
+use ice_communicate, only : master_task, my_task
 implicit none
 
-private 
+contains
+
+function root_pe()
+    integer :: root_pe
+
+    root_pe = master_task
+
+end function root_pe
+
+function my_pe()
+    integer :: my_pe
+
+     my_pe = my_task
+
+end function my_pe
+
+subroutine gather(sendbuf, recvbuf, err)
+    real, dimension(:, :), intent(in) :: sendbuf
+    real, dimension(:, :), intent(out) :: recvbuf
+    integer, intent(out) :: err
+
+    real, dimension(:, :, :), allocatable :: tmp
+
+    allocate(tmp(size(sendbuf, 1), size(sendbuf, 2), 1))
+    tmp(:, :, 1) = sendbuf(:, :)
+
+    call gather_global(recvbuf, tmp, root_pe(), distrb_info)
+
+    deallocate(tmp)
+
+end subroutine gather
+
+end module cice_comms
+
+module dump_field
+
+! Dump a field. Subsequent calls with the same field name will add a new
+! time point to the same file. See the test program below for use.
+
+use netcdf
+use cice_comms
+implicit none
+
 public dump_field_2d, dump_field_close
 
 type field_info_type
@@ -25,29 +102,27 @@ integer, parameter :: MAX_FIELDS = 256
 type (field_info_type), dimension(MAX_FIELDS) :: field_info
 integer :: field_num = 1
 
-contains  
+contains
 
-subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
-    
+subroutine setup_2d(field_name, nx_global, ny_global, do_full_dump)
+
     character(len=*), intent(in) :: field_name
-    integer, intent(in) :: nx, ny, proc_num
+    integer, intent(in) :: nx_global, ny_global
     logical, intent(in) :: do_full_dump
 
     integer :: ncid, varid, min_varid, max_varid, mean_varid, x_dimid, y_dimid, t_dimid
-    character(len=6) :: proc_str
+    integer :: status
 
-    if (proc_num > 999999) then
-        stop 'Error: dump_field::setup_2d(), proc_num too high.'
+    if (my_pe() /= root_pe()) then
+        return
     endif
 
-    write(proc_str, '(I6.6)') proc_num
-
-    ! Open a file, set up a meta-data needed to save the field. 
-    call check(nf90_create(field_name//'.'//proc_str//'.nc', NF90_CLOBBER, ncid), ' create file for '//field_name)
+    ! Open a file, set up a meta-data needed to save the field.
+    call check(nf90_create(field_name//'.nc', NF90_CLOBBER, ncid), ' create file for '//field_name)
     call check(nf90_def_dim(ncid, 't', NF90_UNLIMITED, t_dimid), ' define t dim for '//field_name)
-    if (do_full_dump) then 
-        call check(nf90_def_dim(ncid, 'x', nx, x_dimid), 'define x dim for '//field_name)
-        call check(nf90_def_dim(ncid, 'y', ny, y_dimid), 'define y dim for'//field_name)
+    if (do_full_dump) then
+        call check(nf90_def_dim(ncid, 'x', nx_global, x_dimid), 'define x dim for '//field_name)
+        call check(nf90_def_dim(ncid, 'y', ny_global, y_dimid), 'define y dim for'//field_name)
         call check(nf90_def_var(ncid, field_name, NF90_DOUBLE, (/ x_dimid, y_dimid, t_dimid /), varid), &
                    ' define var for '//field_name)
         field_info(field_num)%varid = varid
@@ -58,7 +133,7 @@ subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
     call check(nf90_enddef(ncid), ' enddef for '//field_name)
 
     field_info(field_num)%field_name = field_name
-    field_info(field_num)%ncid = ncid 
+    field_info(field_num)%ncid = ncid
     field_info(field_num)%min_varid = min_varid
     field_info(field_num)%max_varid = max_varid
     field_info(field_num)%mean_varid = mean_varid
@@ -71,62 +146,88 @@ subroutine setup_2d(field_name, proc_num, nx, ny, do_full_dump)
 
 end subroutine
 
-subroutine dump_field_2d(field_name, proc_num, field_data, do_full_dump)
+subroutine dump_field_2d(field_name, field_data, nx_global, ny_global, do_full_dump)
     ! Search through field names and find appropriate file handle.
-    ! Save to file. 
+    ! Save to file.
 
     character(len=*), intent(in) :: field_name
-    integer, intent(in) :: proc_num
     real, dimension(:,:), intent(in) :: field_data
+    integer, intent(in) :: nx_global, ny_global
     logical, intent(in), optional :: do_full_dump
 
+    real, dimension(:, :), allocatable :: recvbuf
     real :: mean, divisor
-    integer :: start(3), data_size(3), idx
+    integer :: start(3), data_size(3), idx, err
     logical :: found, dump
 
     found = .false.
     dump = .false.
 
-    if (present(do_full_dump)) then 
-        dump = do_full_dump
-    end if
-
-    call get_index(field_name, idx, found)
-    if (.not. found) then
-        call setup_2d(field_name, proc_num, size(field_data, 1), size(field_data, 2), dump)
-    end if
-
-    call get_index(field_name, idx, found)
-    if (.not. found) then
-        stop 'dump_field_mod::field_write'
-    end if
-
-    data_size = (/ size(field_data, 1), size(field_data, 2), 1 /)
-    start = (/ 1, 1, field_info(idx)%count /)
-
-    ! Dump data
-    if (dump) then 
-        call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%varid, field_data, start=start, count=data_size), &
-                   ' put var for '//field_name)
-    end if
-
-    ! Write out some stats. 
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%max_varid, (/ maxval(field_data) /), &
-              start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put max var for '//field_name)
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%min_varid, (/ minval(field_data) /), &
-              start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put min var for '//field_name)
-    divisor = size(field_data, 1) * size(field_data, 2)
-    if (divisor /= 0) then 
-        mean = sum(field_data) / divisor
-    else
-        mean = 0.0
+    if (my_pe() == root_pe()) then
+        allocate(recvbuf(nx_global, ny_global))
     endif
-    call check(nf90_put_var(field_info(idx)%ncid, field_info(idx)%mean_varid, (/ mean /), &
-               start=(/ field_info(idx)%count /), count=(/ 1 /)), ' put mean var for '//field_name)
 
-    call check(nf90_sync(field_info(idx)%ncid), ' sync file for '//field_name)
+    call gather(field_data, recvbuf, err)
 
-    field_info(idx)%count = field_info(idx)%count + 1 
+    if (my_pe() == root_pe()) then
+        if (present(do_full_dump)) then
+            dump = do_full_dump
+        end if
+
+        call get_index(field_name, idx, found)
+        if (.not. found) then
+            call setup_2d(field_name, nx_global, ny_global, dump)
+        end if
+
+        call get_index(field_name, idx, found)
+        if (.not. found) then
+            stop 'dump_field_mod::field_write'
+        end if
+
+        data_size = (/ nx_global, ny_global, 1 /)
+        start = (/ 1, 1, field_info(idx)%count /)
+
+        ! Dump data
+        if (dump) then
+            call check(nf90_put_var(field_info(idx)%ncid, &
+                                    field_info(idx)%varid, &
+                                    recvbuf, start=start, count=data_size), &
+                       ' put var for '//field_name)
+        end if
+
+        ! Write out some stats.
+        call check(nf90_put_var(field_info(idx)%ncid, &
+                                field_info(idx)%max_varid, &
+                                (/ maxval(recvbuf) /), &
+                                start=(/ field_info(idx)%count /), &
+                                count=(/ 1 /)), &
+                                ' put max var for '//field_name)
+
+        call check(nf90_put_var(field_info(idx)%ncid, &
+                                field_info(idx)%min_varid, &
+                                (/ minval(recvbuf) /), &
+                                start=(/ field_info(idx)%count /), &
+                                count=(/ 1 /)), ' put min var for '//field_name)
+        divisor = size(recvbuf)
+        if (divisor /= 0) then
+            mean = sum(recvbuf) / divisor
+        else
+            mean = 0.0
+        endif
+
+        call check(nf90_put_var(field_info(idx)%ncid, &
+                                field_info(idx)%mean_varid, (/ mean /), &
+                                start=(/ field_info(idx)%count /), &
+                                count=(/ 1 /)), &
+                                ' put mean var for '//field_name)
+
+        call check(nf90_sync(field_info(idx)%ncid), &
+                   ' sync file for '//field_name)
+
+        field_info(idx)%count = field_info(idx)%count + 1
+        deallocate(recvbuf)
+
+    endif
 
 end subroutine
 
@@ -137,13 +238,17 @@ subroutine dump_field_close(field_name)
     integer :: idx
     logical :: found
 
-    call get_index(field_name, idx, found)
-    if (.not. found) then
-        stop 'dump_field_mod::field_close()'
-    end if
+    if (my_pe() == root_pe()) then
 
-    call check(nf90_close(field_info(idx)%ncid))
-    
+        call get_index(field_name, idx, found)
+        if (.not. found) then
+            stop 'dump_field_mod::field_close()'
+        end if
+
+        call check(nf90_close(field_info(idx)%ncid))
+
+    endif
+
 end subroutine
 
 subroutine get_index(field_name, idx, found)
@@ -156,10 +261,10 @@ subroutine get_index(field_name, idx, found)
     do idx=1, field_num
         if (field_name == field_info(idx)%field_name) then
             found = .true.
-            return 
+            return
         end if
     end do
-   
+
 end subroutine get_index
 
 subroutine check(status, msg)
@@ -169,31 +274,46 @@ subroutine check(status, msg)
     character(len=1024) :: error_msg
 
     error_msg = 'dump_field_mod::check() '//nf90_strerror(status)
-    if (present(msg)) then 
+    if (present(msg)) then
         error_msg = trim(error_msg)//' at: '//msg
     end if
 
-    if(status /= nf90_noerr) then 
+    if(status /= nf90_noerr) then
         print *, error_msg
         stop 'dump_field_mod::check() ice'
     end if
-end subroutine check  
+end subroutine check
 
 end module
 
+
+! How to run the basic example.
+! 1) Uncomment the code below.
+! 2) Compile with: mpif90 dump_field.F90 -lnetcdf -lnetcdff
+! 3) Run with: mpirun -np 4 ./a.out
+! 4) Check the sst.nc file.
+
 !program test_dump_field
-
+!
 !   use dump_field
-
-!   real, dimension(3, 3) :: array
-
-!   array = reshape((/ 12.0, 32.0, 1.23123, 55.0, 3322.0, 65.0, 0.123, 99.0, 10.0 /), shape(array))
-!   call dump_field_2d('sst', 4, array, .true.)
-
-!   array = reshape((/ 3099.0, 554343.0, 0.3221, 405.0, 23.0, 56.0, 123.0, 89.0, 0.000002 /), shape(array))
-!   call dump_field_2d('sst', 4, array, .true.)
-
+!   use mpi
+!
+!   implicit none
+!
+!   real, dimension(2, 2) :: array
+!   integer :: err
+!
+!   call MPI_Init(err)
+!
+!   array = reshape((/ 12.0, 32.0, 1.23123, 55.0 /), shape(array))
+!   call dump_field_2d('sst', array, 4, 4, .true.)
+!
+!   array = reshape((/ 309.0, 53.0, 0.3221, 45.0 /), shape(array))
+!   call dump_field_2d('sst', array, 4, 4, .true.)
+!
 !   call dump_field_close('sst')
-
+!
+!   call MPI_Finalize(err)
+!
 !end program
 
