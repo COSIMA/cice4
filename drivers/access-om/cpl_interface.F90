@@ -34,7 +34,6 @@
       use dump_field, only: dump_field_2d, dump_field_close
       use ice_communicate, only: my_task
 #endif
-  use gaussian_filter, only: gaussian_kernel, convolve
 
   implicit none
 
@@ -63,11 +62,6 @@
   real(kind=dbl_kind), dimension(:,:), allocatable :: rla_array
   real(kind=dbl_kind), dimension(:),   allocatable :: rla_bufsend
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
-
-    ! Gaussian kernel used to smooth out 'blocky' incoming fields from
-    ! atmosphere. Some temp arrays.
-    real(kind=dbl_kind), dimension(:,:), allocatable :: g_kernel
-    real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d_smoothed
 
   contains
 
@@ -426,10 +420,6 @@
   !
   allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
 
-    ! Get gaussian kernel for smoothing.
-    allocate (vwork2d_smoothed(l_ilo:l_ihi, l_jlo:l_jhi))
-    call gaussian_kernel(7.0, g_kernel, 1.0)
-
   end subroutine init_cpl
 
 !=======================================================================
@@ -458,39 +448,31 @@
 
     endif
 
-        ! Now apply a conservative filter to smooth out the 'blockiness' of the
-        ! input.
-        call convolve(vwork2d, g_kernel, vwork2d_smoothed, &
-                      tmask_real(1+nghost:nx_block-nghost, &
-                                 1+nghost:ny_block-nghost, 1))
-
     ! Copy over non-ghost part of coupled field.
     select case (jf)
         case (1)
-            swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
 #if defined(UNIT_TESTING)
                 call dump_field_2d('from_atm.input.swflx', my_task, vwork2d, .true.)
-                call dump_field_2d('from_atm.input.swflx_smoothed', my_task, &
-                                   vwork2d_smoothed, .true.)
 #endif
         case (2)
-            lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
         case (3)
-            rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
         case (4)
-            snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
+            snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
         case (5)
-            press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
         case (6)
-            runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d_smoothed
+            runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
         case (7)
-            tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
+            tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
         case (8)
-            qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
+            qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
         case (9)
-            uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
+            uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
         case (10)
-            vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d_smoothed
+            vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
         case default
             stop "Error: invalid case in subroutine from_atm()"
     end select
